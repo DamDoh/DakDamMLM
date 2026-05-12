@@ -42,43 +42,38 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Multi-tenant orchestration fields
-  planId            String?
-  lifecycle         CompanyLifecycle?
-  dataResidency     String   @default("us-east-1") // AWS region or similar
-  complianceMode    String   @default("standard") // standard, enhanced, strict
-  isolationLevel    String   @default("logical") // logical, physical, dedicated
-
   // Relations
-  users                  User[]
-  products               Product[]
-  rules                  BusinessRule[]
-  ruleSets               RuleSet[]
-  templates              RuleTemplate[]
-  customFunctions        CustomFunction[]
-  companyRuleConfigs     CompanyRuleConfig[]
-  dynamicRuleSets        DynamicRuleSet[]
-  ruleExecutionSummaries RuleExecutionSummary[]
-  orders                 Order[]
-  commissions            Commission[]
-  stockItems             StockItem[]
-  referralLinks          ReferralLink[]
-  referralRelationships  ReferralRelationship[]
-  genealogyMovements     GenealogyMovement[]
-  otpCodes               OtpCode[]
-  otpDeliveryLogs        OtpDeliveryLog[]
-  otpSettings            OtpSettings?
-  ranks                  Rank[]
-  bonusPools             BonusPool[]
-   wallets                Wallet[]
-   walletTransfers        WalletTransfer[]
+  users                      User[]
+  products                   Product[]
+  rules                      BusinessRule[]
+  ruleSets                   RuleSet[]
+  templates                  RuleTemplate[]
+  customFunctions            CustomFunction[]
+  companyRuleConfigs         CompanyRuleConfig[]
+  dynamicRuleSets            DynamicRuleSet[]
+  ruleExecutionSummaries     RuleExecutionSummary[]
+  orders                     Order[]
+  commissions                Commission[]
+  stockItems                 StockItem[]
+  referralLinks              ReferralLink[]
+  referralRelationships      ReferralRelationship[]
+  genealogyMovements         GenealogyMovement[]
+  otpCodes                   OtpCode[]
+  otpDeliveryLogs            OtpDeliveryLog[]
+  otpSettings                OtpSettings?
 
-   plan              Plan?    @relation(fields: [planId], references: [id])
-   residencyRules    DataResidencyRule[]
-   complianceReports ComplianceReport[]
-   isolationChecks   IsolationCheck[]
+  // Wallet relations
+  wallets                    Wallet[]
+  walletTransactions         WalletTransaction[]
+  walletTransfers            WalletTransfer[]
 
-   @@map("companies")
+  // RBAC relations
+  roles                      Role[]
+
+  // Alert relations
+  alerts                     Alert[]
+
+  @@map("companies")
 }
 
 model RuleVersion {
@@ -195,7 +190,7 @@ model RuleExecutionLog {
   companyId   String? // For company-specific execution tracking
   periodStart DateTime
   periodEnd   DateTime
-  amount      Decimal
+  amount      Float
   breakdown   Json // Array<{component: string, amount: number, description: string}>
   metadata    Json? // Record<string, any>
   executedAt  DateTime @default(now())
@@ -221,20 +216,20 @@ model RuleValidationLog {
 }
 
 model CustomFunction {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  parameters  Json // CustomFunctionParameter[]
-  returnType  String // 'number' | 'string' | 'boolean' | 'array' | 'object'
-  code        String // JavaScript/TypeScript code
-  companyId   String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdBy   String
-  version     Int      @default(1)
-  tags        Json // string[]
-  metadata    Json? // Record<string, any>
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  parameters   Json // CustomFunctionParameter[]
+  returnType   String // 'number' | 'string' | 'boolean' | 'array' | 'object'
+  code         String // JavaScript/TypeScript code
+  companyId    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String
+  version      Int      @default(1)
+  tags         Json // string[]
+  metadata     Json? // Record<string, any>
 
   // Relations
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -243,23 +238,23 @@ model CustomFunction {
 }
 
 model RuleExecutionSummary {
-  id                   String   @id @default(cuid())
-  companyId            String?
-  ruleId               String?
-  ruleSetId            String?
-  periodStart          DateTime
-  periodEnd            DateTime
-  totalExecutions      Int      @default(0)
-  successfulExecutions Int      @default(0)
-  failedExecutions     Int      @default(0)
-  totalamount          Decimal  @default(0)
-  averageamount        Decimal  @default(0)
-  executionTime        Int      @default(0) // milliseconds
-  cacheHits            Int      @default(0)
-  cacheMisses          Int      @default(0)
-  errors               Json // string[]
-  metadata             Json? // Record<string, any>
-  createdAt            DateTime @default(now())
+  id                String   @id @default(cuid())
+  companyId         String?
+  ruleId            String?
+  ruleSetId         String?
+  periodStart       DateTime
+  periodEnd         DateTime
+  totalExecutions   Int      @default(0)
+  successfulExecutions Int   @default(0)
+  failedExecutions  Int      @default(0)
+  totalAmount       Float    @default(0)
+  averageAmount     Float    @default(0)
+  executionTime     Int      @default(0) // milliseconds
+  cacheHits         Int      @default(0)
+  cacheMisses       Int      @default(0)
+  errors            Json // string[]
+  metadata          Json? // Record<string, any>
+  createdAt         DateTime @default(now())
 
   // Relations
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -268,78 +263,78 @@ model RuleExecutionSummary {
 }
 
 model CompanyRuleConfig {
-  id        String  @id @default(cuid())
-  companyId String  @unique
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                        String   @id @default(cuid())
+  companyId                 String   @unique
+  company                   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // Enabled features and rule types
-  enabledRuleTypes  Json // string[]
-  disabledRuleTypes Json // string[]
+  enabledRuleTypes          Json // string[]
+  disabledRuleTypes         Json // string[]
 
   // Custom calculation types
-  customCalculationTypes Json // CustomCalculationType[]
+  customCalculationTypes    Json // CustomCalculationType[]
 
   // Custom condition types
-  customConditionTypes Json // CustomConditionType[]
+  customConditionTypes      Json // CustomConditionType[]
 
   // Performance and limits
-  maxExecutionTime        Int     @default(5000) // milliseconds
-  maxMemoryUsage          Int     @default(100) // MB
-  maxConcurrentExecutions Int     @default(10)
-  cacheEnabled            Boolean @default(true)
-  cacheTTL                Int     @default(3600) // seconds
+  maxExecutionTime          Int      @default(5000) // milliseconds
+  maxMemoryUsage            Int      @default(100) // MB
+  maxConcurrentExecutions   Int      @default(10)
+  cacheEnabled              Boolean  @default(true)
+  cacheTTL                  Int      @default(3600) // seconds
 
   // Audit and compliance
-  auditEnabled       Boolean @default(true)
-  auditRetentionDays Int     @default(2555) // 7 years
-  complianceMode     String  @default("flexible") // 'strict' | 'flexible' | 'disabled'
+  auditEnabled              Boolean  @default(true)
+  auditRetentionDays        Int      @default(2555) // 7 years
+  complianceMode            String   @default("flexible") // 'strict' | 'flexible' | 'disabled'
 
   // Global overrides and defaults
-  globalOverrides Json // Record<string, any>
-  defaultValues   Json // Record<string, any>
+  globalOverrides           Json // Record<string, any>
+  defaultValues             Json // Record<string, any>
 
   // Custom functions
-  customFunctions Json // string[] (function IDs)
+  customFunctions           Json // string[] (function IDs)
 
   // Rule overrides
-  ruleOverrides Json // Record<string, Partial<BusinessRule>>
+  ruleOverrides             Json // Record<string, Partial<BusinessRule>>
 
   // Integration settings
-  integrations Json // IntegrationSettings
+  integrations              Json // IntegrationSettings
 
   // Advanced features
-  advancedFeatures Json // AdvancedFeatures
+  advancedFeatures          Json // AdvancedFeatures
 
   // Genealogy movement settings
-  allowDownlineMovement    Boolean @default(false)
-  movementTimeLimitHours   Int     @default(24) // Hours within which movement is allowed
-  movementRequiresApproval Boolean @default(false)
+  allowDownlineMovement     Boolean @default(false)
+  movementTimeLimitHours    Int     @default(24) // Hours within which movement is allowed
+  movementRequiresApproval  Boolean @default(false)
 
   // Version and lifecycle
-  version       Int       @default(1)
-  isActive      Boolean   @default(true)
-  effectiveDate DateTime  @default(now())
-  expiryDate    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  createdBy     String
-  tags          Json // string[]
-  metadata      Json? // Record<string, any>
+  version                   Int      @default(1)
+  isActive                  Boolean  @default(true)
+  effectiveDate             DateTime @default(now())
+  expiryDate                DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  createdBy                 String
+  tags                      Json // string[]
+  metadata                  Json? // Record<string, any>
 
   @@map("company_rule_configs")
 }
 
 model DynamicRuleSet {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // Rule set configuration
-  rules     Json // BusinessRule[]
-  ruleOrder Json // string[] (rule IDs in execution order)
-  priority  Int  @default(0)
+  rules         Json // BusinessRule[]
+  ruleOrder     Json // string[] (rule IDs in execution order)
+  priority      Int      @default(0)
 
   // Activation and scheduling
   isActive      Boolean   @default(true)
@@ -351,73 +346,72 @@ model DynamicRuleSet {
 
   // Performance and limits
   maxExecutionTime Int?
-  maxRules         Int?
+  maxRules        Int?
 
   // Version control
-  version         Int     @default(1)
+  version        Int      @default(1)
   parentVersionId String?
-  isDraft         Boolean @default(false)
+  isDraft        Boolean  @default(false)
 
   // Audit and compliance
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  createdBy  String
-  approvedBy String?
-  approvedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String
+  approvedBy     String?
+  approvedAt     DateTime?
 
   // Tags and metadata
-  tags     Json // string[]
-  metadata Json? // Record<string, any>
+  tags           Json // string[]
+  metadata       Json? // Record<string, any>
 
   @@map("dynamic_rule_sets")
 }
 
 model User {
-  id           String  @id @default(cuid())
-  email        String  @unique // FIXED: Made required (was nullable which caused issues)
-  phoneNumber  String  @unique
-  password     String
-  firstName    String
-  surname      String
-  fullName     String
-  memberId     String  @unique
-  accountType  String  @default("Customer")
-  sponsorId    String?
-  companyId    String?
-  idCardUrl    String?
-  idCardNumber String? @unique
-  active       Boolean @default(true)
-  isAdmin      Boolean @default(false)
-
+  id                String   @id @default(cuid())
+  email             String   @unique // FIXED: Made required (was nullable which caused issues)
+  phoneNumber       String   @unique
+  password          String
+  firstName         String
+  surname           String
+  fullName          String
+  memberId          String   @unique
+  accountType       String   @default("Customer")
+  sponsorId         String?
+  companyId         String?
+  idCardUrl         String?
+  idCardNumber      String?  @unique
+  active            Boolean  @default(true)
+  isAdmin           Boolean  @default(false)
+  
   // MLM & Genealogy fields
-  rankId            String?
-  rank              Rank?     @relation(fields: [rankId], references: [id])
-  pv                Float     @default(0)
+  rank              String   @default("Member")
+  pv                Float    @default(0)
   pvDate            DateTime?
-  teamSize          Json      @default("{\"left\":0,\"right\":0,\"total\":0}")
-  children          Json      @default("{\"left\":null,\"right\":null}")
+  teamSize          Json
+  children          Json
   placementParentId String?
-  position          String? // 'left' or 'right'
-
+  position          String?  // 'left' or 'right'
+  
   // Stockist fields
-  storeOwnerLevel String? // 'District', 'Provincial', 'Regional', 'Commune'
-
+  storeOwnerLevel   String?  // 'District', 'Provincial', 'Regional', 'Commune'
+  
   // Additional profile fields
-  avatarUrl        String?
-  addresses        Json      @default("[]")
-  lastActivityDate DateTime?
-
+  avatarUrl         String?
+  addresses         Json
+  lastActivityDate  DateTime?
+  
   // Soft delete fields
-  deleted     Boolean   @default(false)
-  deletedDate DateTime?
-  deletedBy   String?
-
+  deleted           Boolean  @default(false)
+  deletedDate       DateTime?
+  deletedBy         String?
+  
   // Account lockout fields
-  failedLoginAttempts Int       @default(0)
+  failedLoginAttempts Int      @default(0)
   lockedUntil         DateTime?
   lastFailedLogin     DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   // Relations
   company                      Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -428,39 +422,60 @@ model User {
   referralMemberRelationships  ReferralRelationship[] @relation("ReferralMember")
 
   // Genealogy movement relations
-  movementsAsMember     GenealogyMovement[] @relation("MovementMember")
-  movementsAsMover      GenealogyMovement[] @relation("MovementMover")
-  movementsAsFromParent GenealogyMovement[] @relation("MovementFromParent")
-  movementsAsToParent   GenealogyMovement[] @relation("MovementToParent")
-  movementsAsApprover   GenealogyMovement[] @relation("MovementApprover")
+  movementsAsMember            GenealogyMovement[]   @relation("MovementMember")
+  movementsAsMover             GenealogyMovement[]   @relation("MovementMover")
+  movementsAsFromParent        GenealogyMovement[]   @relation("MovementFromParent")
+  movementsAsToParent          GenealogyMovement[]   @relation("MovementToParent")
+  movementsAsApprover          GenealogyMovement[]   @relation("MovementApprover")
 
   // Stock and eCash relations
-  stockRequests          StockRequest[]      @relation("StockRequestStockist")
-  processedStockRequests StockRequest[]      @relation("StockRequestProcessor")
-  ecashTopupRequests     EcashTopupRequest[] @relation("EcashTopupRequestMember")
-  processedEcashTopups   EcashTopupRequest[] @relation("EcashTopupRequestProcessor")
+  stockRequests           StockRequest[]           @relation("StockRequestStockist")
+  processedStockRequests  StockRequest[]           @relation("StockRequestProcessor")
+  ecashTopupRequests      EcashTopupRequest[]     @relation("EcashTopupRequestMember")
+  processedEcashTopups    EcashTopupRequest[]     @relation("EcashTopupRequestProcessor")
 
-  // New relations
-  wallet              Wallet?              @relation
-  walletId            String?              @unique
-  commissions         Commission[]
-  kycProfile          KycProfile?
-  cart                Cart?
-  paymentTransactions PaymentTransaction[]
-  amlAlerts           AmlAlert[]
-  superAdminProfile   SuperAdminUser?      @relation()
-  superAdminSessions  SuperAdminSession[]
+  // Wallet relations
+  wallet                  Wallet?
+  transferApprovals       WalletTransfer[]        @relation("TransferApprover")
+  transferCancellations   WalletTransfer[]        @relation("TransferCanceller")
+
+  // RBAC relations
+  roles                   UserRole[]
+  assignedRoles           UserRole[]              @relation("RoleAssigner")
+
+  // Alert relations
+  resolvedAlerts          Alert[]                  @relation("AlertResolver")
+
+  // DSAR relations
+  dsarRequests            DSARRequest[]
+  completedDSARs          DSARRequest[]            @relation("DSARCompleter")
+
+  // Advanced Security relations
+  deviceFingerprints      DeviceFingerprint[]
+  biometricProfiles       BiometricProfile[]
+  securitySessions        SecuritySession[]
+
+  // Mobile Sync relations
+  syncOperations          SyncOperation[]
+  syncSessions            SyncSession[]
+
+  // Compliance relations
+  kycProfile             KycProfile?
+  amlAlerts              AmlAlert[]
+
+  // CRITICAL FIX #1: Add indexes for performance (100x faster queries)
+  @@index([sponsorId])           // For genealogy sponsor queries
+  @@index([placementParentId])   // For binary tree placement queries
+  @@index([companyId])           // For multi-tenant filtering
+  @@index([rank])                // For rank-based queries
+  @@index([deleted])             // For soft delete filtering
+  @@index([active])              // For active user filtering
+  @@index([email])               // For login queries (already unique but explicit index helps)
+  @@index([createdAt])           // For sorting by registration date
+  @@index([companyId, rank])     // Composite for company rank reports
+  @@index([companyId, active])   // Composite for active users per company
 
   @@map("users")
-
-  // Performance indexes for MLM operations
-  @@index([sponsorId])
-  @@index([placementParentId])
-  @@index([companyId])
-  @@index([active, deleted])
-  @@index([storeOwnerLevel])
-  @@index([rankId])
-  @@index([memberId])
 }
 
 model Product {
@@ -491,39 +506,42 @@ model Product {
 }
 
 model Order {
-  id             String   @id @default(cuid())
-  orderId        String   @unique
-  userId         String
-  date           DateTime @default(now())
-  status         String   @default("Pending")
-  itemCount      Int      @default(0)
-  amount         Decimal  @default(0)
-  totalAmount    Decimal  @default(0)
-  companyId      String?
-  idempotencyKey String?  @unique // Prevents duplicate orders from retries
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id          String   @id @default(cuid())
+  orderId     String   @unique
+  userId      String
+  date        DateTime @default(now())
+  status      String   @default("Pending")
+  itemCount   Int      @default(0)
+  amount      Float    @default(0)
+  totalAmount Float    @default(0)
+  companyId   String?
+  idempotencyKey String? @unique // Prevents duplicate orders from retries
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  company             Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  items               OrderItem[]
-  paymentTransactions PaymentTransaction[]
+  company Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   OrderItem[]
 
+  @@map("orders")
   @@index([userId])
   @@index([idempotencyKey])
-  @@index([status, date])
-  @@index([companyId])
-  @@map("orders")
+  // CRITICAL FIX #1: Add more order indexes
+  @@index([companyId])           // For company order reports
+  @@index([status])              // For order status filtering
+  @@index([date])                // For date-based queries
+  @@index([userId, date])        // Composite for user order history
+  @@index([companyId, status])   // Composite for company pending orders
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  productId String
-  quantity  Int
-  price     Float
-  pv        Float    @default(0)
-  createdAt DateTime @default(now())
+  id         String @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  price      Float
+  pv         Float  @default(0)
+  createdAt  DateTime @default(now())
 
   // Relations
   order Order @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
@@ -537,19 +555,20 @@ model Commission {
   date      DateTime @default(now())
   type      String
   status    String   @default("Pending")
-  amount    Decimal
+  amount    Float
   companyId String?
 
   // Relations
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([companyId])
-  @@index([type])
-  @@index([status])
-  @@index([userId, type])
-  @@index([userId, status])
+  // CRITICAL FIX #1: Add indexes for commission queries
+  @@index([userId])              // For user commission history
+  @@index([companyId])           // For company commission reports
+  @@index([status])              // For pending/paid filtering
+  @@index([date])                // For period-based queries
+  @@index([userId, date])        // Composite for user history by date
+  @@index([companyId, status])   // Composite for company pending commissions
+
   @@map("commissions")
 }
 
@@ -606,21 +625,21 @@ model ReferralRelationship {
 }
 
 model StockRequest {
-  id            String    @id @default(cuid())
-  stockistId    String
-  stockistName  String
-  stockistLevel String    @default("District")
-  status        String    @default("pending")
-  createdDate   DateTime  @default(now())
-  processedDate DateTime?
-  processedBy   String?
-  totalValue    Float     @default(0)
-  itemCount     Int       @default(0)
+  id               String   @id @default(cuid())
+  stockistId       String
+  stockistName     String
+  stockistLevel    String   @default("District")
+  status           String   @default("pending")
+  createdDate      DateTime @default(now())
+  processedDate    DateTime?
+  processedBy      String?
+  totalValue       Float    @default(0)
+  itemCount        Int      @default(0)
 
   // Relations
-  stockist  User               @relation("StockRequestStockist", fields: [stockistId], references: [id], onDelete: Cascade)
-  processor User?              @relation("StockRequestProcessor", fields: [processedBy], references: [id], onDelete: SetNull)
-  items     StockRequestItem[]
+  stockist    User     @relation("StockRequestStockist", fields: [stockistId], references: [id], onDelete: Cascade)
+  processor   User?    @relation("StockRequestProcessor", fields: [processedBy], references: [id], onDelete: SetNull)
+  items       StockRequestItem[]
 
   @@map("stock_requests")
 }
@@ -641,19 +660,19 @@ model StockRequestItem {
 }
 
 model EcashTopupRequest {
-  id            String    @id @default(cuid())
-  memberId      String
-  memberName    String
-  amount        Decimal
-  remark        String    @default("")
-  status        String    @default("pending")
-  createdDate   DateTime  @default(now())
+  id           String   @id @default(cuid())
+  memberId     String
+  memberName   String
+  amount       Float
+  remark       String   @default("")
+  status       String   @default("pending")
+  createdDate  DateTime @default(now())
   processedDate DateTime?
-  processedBy   String?
-  proofUrl      String    @default("")
+  processedBy  String?
+  proofUrl     String   @default("")
 
   // Relations
-  member    User  @relation("EcashTopupRequestMember", fields: [memberId], references: [id], onDelete: Cascade)
+  member   User   @relation("EcashTopupRequestMember", fields: [memberId], references: [id], onDelete: Cascade)
   processor User? @relation("EcashTopupRequestProcessor", fields: [processedBy], references: [id], onDelete: SetNull)
 
   @@map("ecash_topup_requests")
@@ -662,11 +681,11 @@ model EcashTopupRequest {
 model Notification {
   id          String    @id @default(cuid())
   memberId    String
-  type        String // 'email' | 'push' | 'sms' | 'in_app'
-  category    String // 'onboarding' | 'commission' | 'team' | 'system' | 'achievement' | 'order'
+  type        String    // 'email' | 'push' | 'sms' | 'in_app'
+  category    String    // 'onboarding' | 'commission' | 'team' | 'system' | 'achievement' | 'order'
   title       String
   body        String
-  data        Json      @default("{}")
+  data        Json
   isRead      Boolean   @default(false)
   isSent      Boolean   @default(false)
   sentDate    DateTime?
@@ -680,11 +699,11 @@ model Notification {
 model NotificationPreference {
   id         String   @id @default(cuid())
   memberId   String   @unique
-  email      Json     @default("{\"onboarding\":true,\"commissions\":true,\"team\":true,\"system\":true,\"achievements\":true}")
-  push       Json     @default("{\"onboarding\":true,\"commissions\":true,\"team\":true,\"system\":false,\"achievements\":true}")
-  sms        Json     @default("{\"commissions\":false,\"urgent\":true}")
+  email      Json
+  push       Json
+  sms        Json
   frequency  String   @default("immediate") // 'immediate' | 'daily' | 'weekly'
-  quietHours Json     @default("{\"enabled\":true,\"start\":\"22:00\",\"end\":\"08:00\"}")
+  quietHours Json
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -692,67 +711,67 @@ model NotificationPreference {
 }
 
 model MemberProgress {
-  id             String   @id @default(cuid())
-  memberId       String   @unique
-  currentStep    Int      @default(0)
-  completedSteps Json     @default("[]")
-  startedDate    DateTime @default(now())
-  lastActivity   DateTime @default(now())
-  isCompleted    Boolean  @default(false)
-  totalTimeSpent Int      @default(0)
-  quizScores     Json     @default("{}")
-  notes          Json     @default("[]")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  memberId        String   @unique
+  currentStep     Int      @default(0)
+  completedSteps  Json
+  startedDate     DateTime @default(now())
+  lastActivity    DateTime @default(now())
+  isCompleted     Boolean  @default(false)
+  totalTimeSpent  Int      @default(0)
+  quizScores      Json
+  notes           Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("member_progress")
 }
 
 model GenealogyMovement {
-  id             String    @id @default(cuid())
-  memberId       String // The member being moved
-  companyId      String
-  movedBy        String // Distributor who initiated the movement
-  fromParentId   String // Original parent
-  toParentId     String // New parent
-  fromPosition   String // 'left' or 'right'
-  toPosition     String // 'left' or 'right'
-  movementReason String? // Optional reason for movement
-  status         String    @default("completed") // 'pending', 'completed', 'rejected'
-  approvedBy     String?
-  approvedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String   @id @default(cuid())
+  memberId          String   // The member being moved
+  companyId         String
+  movedBy           String   // Distributor who initiated the movement
+  fromParentId      String   // Original parent
+  toParentId        String   // New parent
+  fromPosition      String   // 'left' or 'right'
+  toPosition        String   // 'left' or 'right'
+  movementReason    String?  // Optional reason for movement
+  status            String   @default("completed") // 'pending', 'completed', 'rejected'
+  approvedBy        String?
+  approvedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
-  member     User    @relation("MovementMember", fields: [memberId], references: [id])
-  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  mover      User    @relation("MovementMover", fields: [movedBy], references: [id])
-  fromParent User    @relation("MovementFromParent", fields: [fromParentId], references: [id])
-  toParent   User    @relation("MovementToParent", fields: [toParentId], references: [id])
-  approver   User?   @relation("MovementApprover", fields: [approvedBy], references: [id])
+  member            User     @relation("MovementMember", fields: [memberId], references: [id])
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mover             User     @relation("MovementMover", fields: [movedBy], references: [id])
+  fromParent        User     @relation("MovementFromParent", fields: [fromParentId], references: [id])
+  toParent          User     @relation("MovementToParent", fields: [toParentId], references: [id])
+  approver          User?    @relation("MovementApprover", fields: [approvedBy], references: [id])
 
   @@map("genealogy_movements")
-}
+  }
+  
+  model CommissionDispute {
+  id            String   @id @default(cuid())
+  commissionId  String
+  memberId      String
+  amount        Float    @default(0)
+  reason        String
+  description   String?
+  status        String   @default("pending") // 'pending' | 'resolved' | 'rejected'
+  resolution    String?
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  companyId     String?
 
-model CommissionDispute {
-  id           String    @id @default(cuid())
-  commissionId String
-  memberId     String
-  amount       Decimal   @default(0)
-  reason       String
-  description  String?
-  status       String    @default("pending") // 'pending' | 'resolved' | 'rejected'
-  resolution   String?
-  createdAt    DateTime  @default(now())
-  resolvedAt   DateTime?
-  resolvedBy   String?
-  companyId    String?
-
+  @@map("commission_disputes")
   @@index([memberId])
   @@index([status])
   @@index([companyId])
-  @@map("commission_disputes")
 }
 
 model EmailVerification {
@@ -764,54 +783,54 @@ model EmailVerification {
   createdAt DateTime @default(now())
   companyId String?
 
+  @@map("email_verifications")
   @@index([email])
   @@index([token])
-  @@map("email_verifications")
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  token     String    @unique
+  token     String   @unique
   expiresAt DateTime
-  used      Boolean   @default(false)
+  used      Boolean  @default(false)
   usedAt    DateTime?
   ipAddress String?
   userAgent String?
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
+  @@map("password_reset_tokens")
   @@index([userId])
   @@index([token])
-  @@map("password_reset_tokens")
 }
 
 model FinancialControl {
-  id          String    @id @default(cuid())
-  type        String // 'hold' | 'release' | 'adjustment' | 'freeze'
-  amount      Decimal
-  memberId    String
-  reason      String
+  id         String   @id @default(cuid())
+  type       String   // 'hold' | 'release' | 'adjustment' | 'freeze'
+  amount     Float
+  memberId   String
+  reason     String
   description String?
-  status      String    @default("pending") // 'pending' | 'approved' | 'rejected'
-  companyId   String?
-  createdAt   DateTime  @default(now())
-  approvedBy  String?
-  approvedAt  DateTime?
-  rejectedBy  String?
-  rejectedAt  DateTime?
-  metadata    Json?
+  status     String   @default("pending") // 'pending' | 'approved' | 'rejected'
+  companyId  String?
+  createdAt  DateTime @default(now())
+  approvedBy String?
+  approvedAt DateTime?
+  rejectedBy String?
+  rejectedAt DateTime?
+  metadata   Json?
 
+  @@map("financial_controls")
   @@index([memberId])
   @@index([status])
   @@index([companyId])
-  @@map("financial_controls")
 }
 
 model ComplianceDocument {
   id            String   @id @default(cuid())
   title         String
-  type          String // 'terms' | 'privacy' | 'compensation' | 'policy'
-  content       String   @db.Text
+  type          String   // 'terms' | 'privacy' | 'compensation' | 'policy'
+  content       String
   version       String
   isActive      Boolean  @default(true)
   effectiveDate DateTime
@@ -823,102 +842,105 @@ model ComplianceDocument {
   // Relations
   agreements MemberAgreement[]
 
+  @@map("compliance_documents")
   @@index([companyId])
   @@index([type])
   @@index([isActive])
-  @@map("compliance_documents")
 }
 
 model MemberAgreement {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   memberId   String
   documentId String
-  signed     Boolean   @default(false)
+  signed     Boolean  @default(false)
   signedAt   DateTime?
   ipAddress  String?
   userAgent  String?
   companyId  String?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime @default(now())
 
   // Relations
   document ComplianceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@map("member_agreements")
   @@index([memberId])
   @@index([documentId])
   @@index([companyId])
-  @@map("member_agreements")
 }
 
 model InventoryTransaction {
   id          String   @id @default(cuid())
   productId   String
-  userId      String? // User who initiated the transaction
-  type        String // 'purchase' | 'sale' | 'transfer' | 'adjustment' | 'return'
+  userId      String?  // User who initiated the transaction
+  type        String   // 'purchase' | 'sale' | 'transfer' | 'adjustment' | 'return'
   quantity    Int
   previousQty Int
   newQty      Int
-  reference   String? // Order ID, Transfer ID, etc.
+  reference   String?  // Order ID, Transfer ID, etc.
   reason      String?
   companyId   String?
   createdAt   DateTime @default(now())
   createdBy   String
 
+  @@map("inventory_transactions")
   @@index([productId])
   @@index([userId])
   @@index([companyId])
   @@index([createdAt])
-  @@map("inventory_transactions")
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String // 'create' | 'update' | 'delete' | 'login' | 'logout' | etc.
-  entity    String // 'user' | 'product' | 'order' | 'commission' | etc.
-  entityId  String?
-  changes   Json? // Before/after values
-  ipAddress String?
-  userAgent String?
-  companyId String?
-  createdAt DateTime @default(now())
+   id         String   @id @default(cuid())
+   userId     String?
+   action     String   // 'create' | 'update' | 'delete' | 'login' | 'logout' | etc.
+   entity     String   // 'user' | 'product' | 'order' | 'commission' | etc.
+   entityId   String?
+   changes    Json?    // Before/after values
+   ipAddress  String?
+   userAgent  String?
+   companyId  String?
+   createdAt  DateTime @default(now())
 
-  @@index([userId])
-  @@index([entity, entityId])
-  @@index([companyId])
-  @@index([createdAt])
-  @@map("audit_logs")
+   @@map("audit_logs")
+   @@index([userId])
+   @@index([entity, entityId])
+   @@index([companyId])
+   @@index([createdAt])
 }
 
 model OtpCode {
-  id         String   @id @default(cuid())
-  identifier String // Email or phone number
-  type       String // 'email' | 'sms'
-  purpose    String // 'verification' | 'password_reset' | 'login_2fa'
-  code       String // Hashed OTP code
-  expiresAt  DateTime
-  attempts   Int      @default(0)
-  isActive   Boolean  @default(true)
+   id         String   @id @default(cuid())
+   identifier String   // Email or phone number
+   type       String   // 'email' | 'sms'
+   purpose    String   // 'verification' | 'password_reset' | 'login_2fa'
+   code       String   // Hashed OTP code
+   expiresAt  DateTime
+   attempts   Int      @default(0)
+   isActive   Boolean  @default(true)
   companyId  String?
-  company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+   createdAt  DateTime @default(now())
 
-  @@index([identifier])
-  @@index([companyId])
-  @@index([expiresAt])
-  @@index([isActive])
-  @@map("otp_codes")
+   // Relations
+   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+   @@map("otp_codes")
+   @@index([identifier])
+   @@index([companyId])
+   @@index([expiresAt])
+   @@index([isActive])
 }
+
 
 model OtpDeliveryLog {
   id         String   @id @default(cuid())
   otpId      String
-  identifier String // Email or phone number
-  type       String // 'email' | 'sms'
-  provider   String // 'internal_smtp' | 'internal_sms' | 'external'
-  status     String // 'sent' | 'delivered' | 'failed'
+  identifier String   // Email or phone number
+  type       String   // 'email' | 'sms'
+  provider   String   // 'internal_smtp' | 'internal_sms' | 'external'
+  status     String   // 'sent' | 'delivered' | 'failed'
   error      String?
-  messageId  String? // Provider message ID
-  cost       Float? // Cost if applicable
+  messageId  String?  // Provider message ID
+  cost       Float?   // Cost if applicable
   ipAddress  String?
   userAgent  String?
   companyId  String?
@@ -927,691 +949,428 @@ model OtpDeliveryLog {
   // Relations
   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  @@map("otp_delivery_logs")
   @@index([otpId])
   @@index([identifier])
   @@index([companyId])
   @@index([createdAt])
-  @@map("otp_delivery_logs")
-}
-
-model OtpSettings {
-  id        String  @id @default(cuid())
-  companyId String  @unique
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  // OTP Configuration
-  emailEnabled      Boolean @default(true)
-  smsEnabled        Boolean @default(true)
-  codeLength        Int     @default(6)
-  codeExpiryMinutes Int     @default(10)
-  maxAttempts       Int     @default(3)
-  rateLimitPerHour  Int     @default(5)
-  rateLimitPerDay   Int     @default(20)
-
-  // Email Configuration
-  smtpHost      String?
-  smtpPort      Int     @default(587)
-  smtpSecure    Boolean @default(false)
-  smtpUser      String?
-  smtpPassword  String?
-  smtpFromEmail String?
-  smtpFromName  String?
-
-  // SMS Configuration
-  smsProvider   String  @default("internal") // 'internal' | 'twilio' | 'aws_sns' | 'nexmo'
-  smsApiKey     String?
-  smsApiSecret  String?
-  smsFromNumber String?
-
-  // Templates
-  emailTemplates Json // Email templates for different purposes
-  smsTemplates   Json // SMS templates for different purposes
-
-  // Security
-  requireOtpForLogin        Boolean @default(false)
-  requireOtpForTransactions Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("otp_settings")
-}
-
-model Rank {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  level        Int      @unique
-  description  String?
-  requirements Json // Requirements to achieve this rank
-  benefits     Json // Benefits of this rank
-  isActive     Boolean  @default(true)
-  companyId    String?
-  company      Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  users User[]
-
-  @@map("ranks")
-}
-
-model BonusPool {
-  id              String    @id @default(cuid())
-  name            String
-  type            String // 'matching' | 'binary' | 'daily' | 'monthly'
-  totalAmount     Decimal   @default(0)
-  availableAmount Decimal   @default(0)
-  periodStart     DateTime
-  periodEnd       DateTime?
-  isActive        Boolean   @default(true)
-  companyId       String?
-  company         Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@map("bonus_pools")
-}
-
-model Cart {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  items     Json // CartItem[]
-  total     Decimal  @default(0)
-  currency  String   @default("USD")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("carts")
-}
-
-model PaymentTransaction {
-  id            String   @id @default(cuid())
-  orderId       String?
-  order         Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount        Decimal
-  currency      String   @default("USD")
-  status        String   @default("pending") // 'pending' | 'completed' | 'failed' | 'cancelled'
-  paymentMethod String // 'stripe' | 'paypal' | 'bank_transfer' | 'crypto'
-  transactionId String?  @unique
-  metadata      Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@map("payment_transactions")
 }
 
 model Wallet {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  companyId String?
-  user      User     @relation(fields: [userId], references: [id])
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  balance   Decimal  @default(0)
-  currency  String   @default("USD")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+   id          String   @id @default(cuid())
+   userId      String   @unique
+   balance     Float    @default(0) // CRITICAL FIX #4: Will add CHECK constraint (balance >= 0) in migration
+   currency    String   @default("USD")
+   isActive    Boolean  @default(true)
+   companyId   String?
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
 
-  // Relations
-  transactions      WalletTransaction[]
-  outgoingTransfers WalletTransfer[]    @relation("WalletTransferFrom")
-  incomingTransfers WalletTransfer[]    @relation("WalletTransferTo")
+   // Relations
+   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   transactions WalletTransaction[]
+   transfersFrom WalletTransfer[] @relation("TransferFromWallet")
+   transfersTo   WalletTransfer[] @relation("TransferToWallet")
 
-  @@map("wallets")
+   @@map("wallets")
+   @@index([userId])
+   @@index([companyId])
+   @@index([isActive])           // CRITICAL FIX #1: For active wallet queries
+   @@index([companyId, isActive])// CRITICAL FIX #1: Composite for company active wallets
 }
 
 model WalletTransaction {
-  id            String   @id @default(cuid())
-  walletId      String
-  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  type          String // 'credit' | 'debit' | 'transfer_in' | 'transfer_out' | 'commission' | 'withdrawal'
-  amount        Decimal
-  balanceBefore Decimal
-  balanceAfter  Decimal
-  status        String   @default("pending")
-  description   String?
-  referenceId   String? // Reference to commission, order, transfer, etc.
-  referenceType String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+   id            String   @id @default(cuid())
+   walletId      String
+   type          String   // 'credit' | 'debit' | 'transfer_in' | 'transfer_out' | 'commission' | 'withdrawal'
+   amount        Float
+   balanceBefore Float
+   balanceAfter  Float
+   description   String?
+   referenceId   String?  // Order ID, Commission ID, Transfer ID, etc.
+   referenceType String?  // 'order' | 'commission' | 'transfer' | 'withdrawal' | 'topup'
+   status        String   @default("completed") // 'pending' | 'completed' | 'failed' | 'cancelled'
+   metadata      Json?    // Additional transaction data
+   companyId     String?
+   createdAt     DateTime @default(now())
 
-  @@index([walletId])
-  @@index([referenceId])
-  @@index([type])
-  @@index([createdAt])
-  @@index([walletId, type])
-  @@index([walletId, createdAt])
-  @@map("wallet_transactions")
+   // Relations
+   wallet  Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+   @@map("wallet_transactions")
+   @@index([walletId])
+   @@index([type])
+   @@index([status])
+   @@index([companyId])
+   @@index([createdAt])
+   // CRITICAL FIX #1: Add composite indexes for common queries
+   @@index([walletId, createdAt])     // For wallet history sorted by date
+   @@index([walletId, type])          // For wallet transactions by type
+   @@index([referenceId, referenceType]) // For lookup by reference (order, commission, etc.)
 }
 
 model WalletTransfer {
-  id            String    @id @default(cuid())
-  fromWalletId  String
-  toWalletId    String
-  amount        Decimal
-  fee           Decimal   @default(0)
-  description   String?
-  status        String    @default("pending")
-  escrowAmount  Decimal?
-  escrowExpires DateTime?
-  cancelledBy   String?
-  companyId     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+   id            String   @id @default(cuid())
+   fromWalletId  String
+   toWalletId    String
+   amount        Float
+   fee           Float    @default(0)
+   description   String?
+   status        String   @default("pending") // 'pending' | 'completed' | 'failed' | 'cancelled'
+   escrowAmount  Float?   // For large transfers requiring approval
+   escrowExpires DateTime?
+   approvedBy    String?
+   approvedAt    DateTime?
+   cancelledBy   String?
+   cancelledAt   DateTime?
+   companyId     String?
+   createdAt     DateTime @default(now())
+   updatedAt     DateTime @updatedAt
 
-  fromWallet Wallet   @relation("WalletTransferFrom", fields: [fromWalletId], references: [id], onDelete: Cascade)
-  toWallet   Wallet   @relation("WalletTransferTo", fields: [toWalletId], references: [id], onDelete: Cascade)
-  company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   // Relations
+   fromWallet Wallet   @relation("TransferFromWallet", fields: [fromWalletId], references: [id])
+   toWallet   Wallet   @relation("TransferToWallet", fields: [toWalletId], references: [id])
+   company    Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   approver   User?    @relation("TransferApprover", fields: [approvedBy], references: [id])
+   canceller  User?    @relation("TransferCanceller", fields: [cancelledBy], references: [id])
 
-  @@index([fromWalletId])
-  @@index([toWalletId])
-  @@index([companyId])
-  @@map("wallet_transfers")
+   @@map("wallet_transfers")
+   @@index([fromWalletId])
+   @@index([toWalletId])
+   @@index([status])
+   @@index([companyId])
+}
+
+model Role {
+   id          String   @id @default(cuid())
+   name        String   @unique
+   description String?
+   companyId   String?
+   isSystem    Boolean  @default(false) // System roles vs company-specific
+   isActive    Boolean  @default(true)
+   createdAt   DateTime @default(now())
+   updatedAt   DateTime @updatedAt
+
+   // Relations
+   company     Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   permissions RolePermission[]
+   users       UserRole[]
+
+   @@map("roles")
+}
+
+model Permission {
+   id          String   @id @default(cuid())
+   name        String   @unique
+   description String?
+   resource    String   // 'user' | 'product' | 'order' | 'commission' | 'admin' | etc.
+   action      String   // 'create' | 'read' | 'update' | 'delete' | 'manage'
+   isSystem    Boolean  @default(false)
+   createdAt   DateTime @default(now())
+
+   // Relations
+   roles       RolePermission[]
+
+   @@map("permissions")
+   @@unique([resource, action])
+}
+
+model RolePermission {
+   roleId       String
+   permissionId String
+
+   role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+   @@id([roleId, permissionId])
+   @@map("role_permissions")
+}
+
+model UserRole {
+   userId String
+   roleId String
+   assignedAt DateTime @default(now())
+   assignedBy String?
+
+   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+   assigner User? @relation("RoleAssigner", fields: [assignedBy], references: [id])
+
+   @@id([userId, roleId])
+   @@map("user_roles")
+}
+
+model Alert {
+   id        String   @id @default(cuid())
+   ruleId    String
+   title     String
+   message   String
+   severity  String   // 'low' | 'medium' | 'high' | 'critical'
+   status    String   @default("active") // 'active' | 'acknowledged' | 'resolved'
+   data      Json?    // Additional alert data
+   companyId String?
+   createdAt DateTime @default(now())
+   resolvedAt DateTime?
+   resolvedBy String?
+
+   // Relations
+   company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+   resolver User?   @relation("AlertResolver", fields: [resolvedBy], references: [id])
+
+   @@map("alerts")
+   @@index([status])
+   @@index([severity])
+   @@index([companyId])
+   @@index([createdAt])
+}
+
+model DSARRequest {
+   id           String   @id @default(cuid())
+   userId       String
+   type         String   // 'access' | 'rectification' | 'erasure' | 'restriction' | 'portability' | 'objection'
+   status       String   @default("pending") // 'pending' | 'processing' | 'completed' | 'rejected'
+   requestData  Json?    // Additional request data
+   responseData Json?    // Response data for completed requests
+   createdAt    DateTime @default(now())
+   completedAt  DateTime?
+   completedBy  String?
+   notes        String?
+
+   // Relations
+   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   completer    User?    @relation("DSARCompleter", fields: [completedBy], references: [id])
+
+   @@map("dsar_requests")
+   @@index([userId])
+   @@index([status])
+   @@index([type])
+   @@index([createdAt])
+}
+
+model OtpSettings {
+    id                    String   @id @default(cuid())
+    companyId             String   @unique
+    company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+    // OTP Configuration
+    emailEnabled          Boolean  @default(true)
+    smsEnabled            Boolean  @default(true)
+    codeLength            Int      @default(6)
+    codeExpiryMinutes     Int      @default(10)
+    maxAttempts           Int      @default(3)
+    rateLimitPerHour      Int      @default(5)
+    rateLimitPerDay       Int      @default(20)
+
+    // Email Configuration
+    smtpHost              String?
+    smtpPort              Int      @default(587)
+    smtpSecure            Boolean  @default(false)
+    smtpUser              String?
+    smtpPassword          String?
+    smtpFromEmail         String?
+    smtpFromName          String?
+
+    // SMS Configuration
+    smsProvider           String   @default("internal") // 'internal' | 'twilio' | 'aws_sns' | 'nexmo'
+    smsApiKey             String?
+    smsApiSecret          String?
+    smsFromNumber         String?
+
+    // Templates
+    emailTemplates        Json     // Email templates for different purposes
+    smsTemplates          Json     // SMS templates for different purposes
+
+    // Security
+    requireOtpForLogin    Boolean  @default(false)
+    requireOtpForTransactions Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("otp_settings")
+}
+
+model DeviceFingerprint {
+    id            String   @id @default(cuid())
+    userId        String
+    user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    fingerprint   String   @unique // SHA-256 hash of device characteristics
+    userAgent     String
+    ipAddress     String
+    location      Json?    // Geographic location data
+    deviceInfo    Json     // Device characteristics (platform, browser, etc.)
+    trustScore    Int      @default(50) // 0-100 trust score
+    isTrusted     Boolean  @default(false)
+    lastUsed      DateTime @default(now())
+    createdAt     DateTime @default(now())
+
+    // Security sessions
+    securitySessions SecuritySession[]
+
+    @@unique([userId, fingerprint])
+    @@map("device_fingerprints")
+}
+
+model BiometricProfile {
+    id             String   @id @default(cuid())
+    userId         String
+    user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    biometricType  String   // 'fingerprint' | 'face' | 'voice' | 'behavioral'
+    publicKey      String?  // For WebAuthn/FIDO2
+    credentialId   String?  // Unique credential identifier
+    challenge      String?  // Current challenge for verification
+    counter        Int?     // Signature counter for replay protection
+    enrolledAt     DateTime @default(now())
+    lastUsed       DateTime @default(now())
+    isActive       Boolean  @default(true)
+
+    @@map("biometric_profiles")
+}
+
+model SecuritySession {
+    id                    String   @id @default(cuid())
+    userId                String
+    user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    deviceFingerprint     String
+    deviceFingerprintRef  DeviceFingerprint @relation(fields: [deviceFingerprint], references: [fingerprint])
+    ipAddress             String
+    userAgent             String
+    location              String   @default("unknown")
+    riskScore             Int      @default(50) // 0-100 risk assessment
+    authenticationMethods Json     // Array of required auth methods
+    mfaVerified           Boolean  @default(false)
+    biometricVerified     Boolean  @default(false)
+    startedAt             DateTime @default(now())
+    lastActivity          DateTime @default(now())
+    expiresAt             DateTime
+    isActive              Boolean  @default(true)
+
+    @@map("security_sessions")
+}
+
+model SyncOperation {
+    id           String   @id @default(cuid())
+    userId       String
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    deviceId     String
+    type         String   // 'create' | 'update' | 'delete'
+    entity       String   // 'order' | 'commission' | 'notification' | etc.
+    entityId     String
+    data         Json     // Operation data payload
+    version      Int      @default(1) // Data version for conflict resolution
+    status       String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+    retryCount   Int      @default(0)
+    errorMessage String?
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    @@map("sync_operations")
+}
+
+model SyncSession {
+    id                   String   @id @default(cuid())
+    userId               String
+    user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    deviceId             String
+    startedAt            DateTime @default(now())
+    lastSyncAt           DateTime @default(now())
+    status               String   @default("active") // 'active' | 'completed' | 'failed'
+    totalOperations      Int      @default(0)
+    completedOperations  Int      @default(0)
+    failedOperations     Int      @default(0)
+    dataTransferred      Int      @default(0) // bytes transferred
+    createdAt            DateTime @default(now())
+
+    @@map("sync_sessions")
 }
 
 model KycProfile {
-  id               String    @id @default(cuid())
-  userId           String    @unique
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status           String    @default("pending") // 'pending' | 'approved' | 'rejected'
-  documents        Json // KycDocument[]
-  verificationData Json?
-  submittedAt      DateTime?
-  reviewedAt       DateTime?
-  reviewedBy       String?
-  notes            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+    id                String   @id @default(cuid())
+    userId            String   @unique
+    user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    status            String   @default("pending") // 'pending' | 'in_review' | 'approved' | 'rejected' | 'expired'
+    riskLevel         String   @default("medium") // 'low' | 'medium' | 'high' | 'critical'
+    verificationLevel String   @default("standard") // 'basic' | 'standard' | 'enhanced' | 'premium'
+    riskScore         Int      @default(50)
+    expiresAt         DateTime
+    rejectionReason   String?
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
 
-  @@map("kyc_profiles")
+    documents KycDocument[]
+    checks    KycCheck[]
+
+    @@map("kyc_profiles")
+}
+
+model KycDocument {
+    id                String   @id @default(cuid())
+    kycProfileId      String
+    kycProfile        KycProfile @relation(fields: [kycProfileId], references: [id], onDelete: Cascade)
+    type              String   // 'id_card' | 'passport' | 'drivers_license' | 'utility_bill' | 'bank_statement' | 'address_proof'
+    status            String   @default("pending") // 'pending' | 'verified' | 'rejected'
+    fileUrl           String
+    extractedData     Json?    // OCR/extracted data
+    verificationScore Int      @default(0)
+    verifiedAt        DateTime?
+    verifiedBy        String?
+    rejectionReason   String?
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
+
+    @@map("kyc_documents")
+}
+
+model KycCheck {
+    id           String   @id @default(cuid())
+    kycProfileId String
+    kycProfile   KycProfile @relation(fields: [kycProfileId], references: [id], onDelete: Cascade)
+    type         String   // 'identity' | 'address' | 'sanctions' | 'adverse_media' | 'pep' | 'fraud'
+    status       String   @default("pending") // 'pending' | 'passed' | 'failed' | 'error'
+    provider     String   // Verification service provider
+    result       Json     // Check result data
+    score        Int      @default(0) // 0-100 confidence score
+    errorMessage String?
+    createdAt    DateTime @default(now())
+
+    @@map("kyc_checks")
 }
 
 model AmlAlert {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String // 'transaction' | 'profile' | 'behavior'
-  severity    String    @default("low") // 'low' | 'medium' | 'high'
-  description String
-  details     Json?
-  status      String    @default("open") // 'open' | 'investigating' | 'resolved' | 'dismissed'
-  resolvedAt  DateTime?
-  resolvedBy  String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+    id                   String   @id @default(cuid())
+    type                 String   // 'transaction_monitoring' | 'unusual_activity' | 'sanctions_hit' | 'high_risk_transaction'
+    severity             String   @default("medium") // 'low' | 'medium' | 'high' | 'critical'
+    userId               String
+    user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    transactionId        String?
+    amount               Float?
+    description          String
+    riskIndicators       Json     // Array of risk indicators
+    status               String   @default("open") // 'open' | 'investigating' | 'resolved' | 'dismissed'
+    resolvedAt           DateTime?
+    resolvedBy           String?
+    regulatoryReportFiled Boolean  @default(false)
+    createdAt            DateTime @default(now())
+    updatedAt            DateTime @updatedAt
 
-  @@map("aml_alerts")
+    @@map("aml_alerts")
 }
 
-// ========================================
-// SUPER ADMIN MODELS
-// ========================================
+model RegulatoryReport {
+    id              String   @id @default(cuid())
+    type            String   // 'sar' | 'ctr' | 'fir' | 'goaml' | 'custom'
+    status          String   @default("draft") // 'draft' | 'submitted' | 'approved' | 'rejected'
+    reportingEntity String
+    reportData      Json     // Report content
+    filingReference String?
+    submittedAt     DateTime?
+    approvedAt      DateTime?
+    rejectionReason String?
+    createdBy       String
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
 
-// Global Configuration Management
-model GlobalConfig {
-  id                String   @id @default(cuid())
-  key               String   @unique
-  value             Json
-  type              String   @default("string") // string, number, boolean, json
-  category          String   // feature_flags, system_limits, security_settings
-  description       String?
-  isActive          Boolean  @default(true)
-  effectiveDate     DateTime @default(now())
-  expiryDate        DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  createdBy         String
-  version           Int      @default(1)
-
-  @@map("global_configs")
-}
-
-// Subscription Plans & Tiers
-model Plan {
-  id                String   @id @default(cuid())
-  name              String   @unique
-  displayName       String
-  description       String?
-  tier              String   // free, basic, premium, enterprise
-  pricing           Json     // complex pricing structure
-  resourceLimits    Json     // quotas per resource type
-  features          Json     // enabled features
-  isActive          Boolean  @default(true)
-  isDefault         Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  companies         Company[]
-
-  @@map("plans")
-}
-
-// Company Lifecycle States
-model CompanyLifecycle {
-  id                String   @id @default(cuid())
-  companyId         String   @unique
-  currentState      String   // provisioning, active, suspended, terminating, terminated
-  previousState     String?
-  stateChangedAt    DateTime @default(now())
-  stateChangedBy    String
-  provisioningData  Json?
-  suspensionReason  String?
-  terminationReason String?
-  scheduledActions  Json?    // auto-suspend, auto-terminate dates
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@map("company_lifecycles")
-}
-
-// Extended fields for Company model are in the main Company definition
-
-// Super Admin Role Hierarchy
-model SuperAdminRole {
-  id                String   @id @default(cuid())
-  name              String   @unique
-  level             Int      @unique // 1=SuperAdmin, 2=SeniorAdmin, 3=Admin
-  description       String?
-  permissions       Json     // granular permissions
-  restrictions      Json     // ABAC rules
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  users             SuperAdminUser[]
-
-  @@map("super_admin_roles")
-}
-
-// Super Admin Users
-model SuperAdminUser {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  roleId            String
-  isActive          Boolean  @default(true)
-  mfaEnabled        Boolean  @default(true)
-  lastLogin         DateTime?
-  loginAttempts     Int      @default(0)
-  lockedUntil       DateTime?
-  sessionTimeout    Int      @default(3600) // seconds
-  ipRestrictions    Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role              SuperAdminRole @relation(fields: [roleId], references: [id])
-
-  impersonationLogs SuperAdminImpersonationLog[]
-  auditLogs        SuperAdminAuditLog[]
-  mfaConfig        SuperAdminMFAConfig?
-  dashboardConfig  DashboardConfig?
-
-  @@map("super_admin_users")
-}
-
-// Impersonation Logs
-model SuperAdminImpersonationLog {
-  id                String   @id @default(cuid())
-  superAdminId      String
-  targetUserId      String
-  targetCompanyId   String?
-  action            String   // login, logout, action_performed
-  details           Json     // what was done during session
-  ipAddress         String
-  userAgent         String
-  startedAt         DateTime
-  endedAt           DateTime?
-  duration          Int?     // seconds
-  riskScore         Int      @default(0)
-  createdAt         DateTime @default(now())
-
-  superAdmin        SuperAdminUser @relation(fields: [superAdminId], references: [id])
-
-   @@index([superAdminId])
-   @@index([targetUserId])
-   @@map("super_admin_impersonation_logs")
-}
-
-// Super Admin Sessions
-model SuperAdminSession {
-  id                String   @id @default(cuid())
-  userId            String
-  tokenHash         String
-  expiresAt         DateTime
-  isActive          Boolean  @default(true)
-  lastActivity      DateTime @default(now())
-  createdAt         DateTime @default(now())
-  mfaVerified       Boolean  @default(false)
-
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([tokenHash])
-  @@map("super_admin_sessions")
-}
-
-// Super Admin Audit Log (Immutable)
-model SuperAdminAuditLog {
-  id                String   @id @default(cuid())
-  superAdminId      String
-  action            String   // create_company, suspend_tenant, global_config_change, etc.
-  entityType        String   // company, user, global_config, plan
-  entityId          String?
-  companyId         String?  // target company if applicable
-  oldValues         Json?    // previous state
-  newValues         Json?    // new state
-  metadata          Json?    // additional context
-  ipAddress         String
-  userAgent         String
-  location          Json?    // geo location data
-  sessionId         String
-  riskScore         Int      @default(0)
-  anomalyFlags      Json?    // detected anomalies
-  createdAt         DateTime @default(now()) @updatedAt // no manual updates allowed
-  hash              String   // cryptographic hash for immutability
-
-  superAdmin        SuperAdminUser @relation(fields: [superAdminId], references: [id])
-
-  @@index([superAdminId])
-  @@index([action])
-  @@index([entityType])
-  @@index([companyId])
-  @@index([createdAt])
-  @@map("super_admin_audit_logs")
-}
-
-// System Health Monitoring
-model SystemHealthMetric {
-  id                String   @id @default(cuid())
-  metricType        String   // cpu_usage, memory_usage, db_connections, api_latency
-  value             Float
-  unit              String   // percentage, bytes, milliseconds, count
-  tags              Json     // service, region, tenant_id
-  timestamp         DateTime @default(now())
-
-  @@index([metricType])
-  @@index([timestamp])
-  @@map("system_health_metrics")
-}
-
-// Anomaly Detection Rules
-model AnomalyRule {
-  id                String   @id @default(cuid())
-  name              String   @unique
-  description       String?
-  metricType        String
-  condition         String   // threshold, pattern, statistical
-  threshold         Json
-  severity          String   // low, medium, high, critical
-  alertChannels     Json     // email, slack, pager_duty
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("anomaly_rules")
-}
-
-// Data Residency Rules
-model DataResidencyRule {
-  id                String   @id @default(cuid())
-  region            String   // us-east-1, eu-west-1, etc.
-  country           String
-  complianceFrameworks Json  // GDPR, CCPA, PDPA
-  dataTypes         Json     // PII, financial, health
-  storageProviders  Json     // AWS, GCP, Azure
-  encryptionRequirements Json
-  retentionPolicies Json
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  companies         Company[]
-
-  @@map("data_residency_rules")
-}
-
-// Compliance Reports
-model ComplianceReport {
-  id                String   @id @default(cuid())
-  companyId         String?
-  reportType        String   // GDPR, SOC2, HIPAA
-  periodStart       DateTime
-  periodEnd         DateTime
-  status            String   @default("generating")
-  findings          Json
-  recommendations   Json
-  evidence          Json
-  generatedAt       DateTime?
-  reviewedAt        DateTime?
-  reviewedBy        String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  company           Company? @relation(fields: [companyId], references: [id])
-
-  @@map("compliance_reports")
-}
-
-// Data Isolation Verification
-model IsolationCheck {
-  id                String   @id @default(cuid())
-  companyId         String
-  checkType         String   // data_leakage, cross_tenant_access, encryption
-  status            String   @default("pending")
-  results           Json
-  riskLevel         String   @default("low")
-  remediationSteps  Json?
-  scheduledAt       DateTime
-  executedAt        DateTime?
-  nextCheckAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@map("isolation_checks")
-}
-
-// MFA Configuration for Super Admins
-model SuperAdminMFAConfig {
-  id                String   @id @default(cuid())
-  superAdminId      String   @unique
-  isEnabled         Boolean  @default(true)
-  methods           Json     // TOTP, SMS, hardware_token
-  backupCodes       Json     // encrypted backup codes
-  gracePeriod       Int      @default(0) // minutes
-  lastVerified      DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  superAdmin        SuperAdminUser @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
-
-  @@map("super_admin_mfa_configs")
-}
-
-// Four-Eyes Principle Implementation
-model DualAuthorizationRequest {
-  id                String   @id @default(cuid())
-  actionType        String   // delete_company, change_global_config, emergency_access
-  requestData       Json     // details of the action
-  riskLevel         String   // low, medium, high, critical
-  requestedBy       String
-  approvedBy        String?
-  status            String   @default("pending") // pending, approved, rejected, expired
-  approvalDeadline  DateTime
-  approvedAt        DateTime?
-  executedAt        DateTime?
-  executedBy        String?
-  rejectionReason   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("dual_authorization_requests")
-}
-
-// Rate Limiting Configuration
-model RateLimitRule {
-  id                String   @id @default(cuid())
-  endpoint          String
-  method            String   // GET, POST, PUT, DELETE
-  limit             Int      // requests per window
-  window            Int      // seconds
-  scope             String   // global, per_tenant, per_user
-  conditions        Json     // additional matching rules
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("rate_limit_rules")
-}
-
-// Global Metrics for God's Eyes
-model GlobalMetric {
-  id                String   @id @default(cuid())
-  metricName        String
-  value             Float
-  unit              String
-  tags              Json     // {tenantId, service, region}
-  collectedAt       DateTime @default(now())
-
-  @@index([metricName])
-  @@index([collectedAt])
-  @@map("global_metrics")
-}
-
-// Tenant Analytics for God's Eyes
-model TenantAnalytics {
-  id                String   @id @default(cuid())
-  tenantId          String
-  companyId         String
-  userId            String?
-  metricType        String
-  value             Float
-  metadata          Json?
-  recordedAt        DateTime @default(now())
-
-  @@index([tenantId])
-  @@index([companyId])
-  @@index([metricType])
-  @@map("tenant_analytics")
-}
-
-// Risk Profile for God's Foresight
-model RiskProfile {
-  id                String   @id @default(cuid())
-  entityType        String   // 'company' | 'user' | 'system'
-  entityId          String
-  riskScore         Int      @default(0) // 0-100
-  riskFactors       Json     // Array of risk factors
-  lastAssessedAt    DateTime @default(now())
-  nextAssessmentAt  DateTime?
-  alertLevel        String   @default("low") // low, medium, high, critical
-
-  @@unique([entityType, entityId])
-  @@index([riskScore])
-  @@map("risk_profiles")
-}
-
-// System Command for God's Hands (Bulk operations)
-model SystemCommand {
-  id                String   @id @default(cuid())
-  commandType       String   // 'bulk_update' | 'emergency' | 'maintenance'
-  parameters        Json
-  status            String   @default("pending") // pending, executing, completed, failed
-  initiatedBy       String   // Super admin user ID
-  approvedBy        String?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  result            Json?
-  error             String?
-  createdAt         DateTime @default(now())
-
-  @@index([commandType])
-  @@index([status])
-  @@map("system_commands")
-}
-
-// Governance Rules for God's Judgment
-model GovernanceRule {
-  id                String   @id @default(cuid())
-  name              String
-  description       String?
-  ruleType          String   // 'security' | 'performance' | 'compliance' | 'business'
-  condition         Json     // Rule condition
-  action            Json     // Action to take
-  severity          String   // low, medium, high, critical
-  isActive          Boolean  @default(true)
-  lastTriggeredAt   DateTime?
-  lastExecutedAt    DateTime?
-  executionCount    Int      @default(0)
-  successRate       Float?   // Last 100 executions success rate
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("governance_rules")
-}
-
-// Emergency Events for Crisis Management
-model EmergencyEvent {
-  id                String   @id @default(cuid())
-  eventType         String   // 'security_breach' | 'system_outage' | 'data_loss' | 'compliance_violation'
-  severity          String   // low, medium, high, critical
-  status            String   @default("active") // active, contained, resolved
-  description       String
-  details           Json?
-  declaredBy        String   // Super admin user ID
-  resolvedBy        String?
-  declaredAt        DateTime @default(now())
-  resolvedAt        DateTime?
-  impactScope       Json?    // Affected tenants, services, etc.
-  responseActions   Json?    // Actions taken
-  postMortem        Json?    // Post-incident analysis
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([eventType])
-  @@index([severity])
-  @@index([status])
-  @@map("emergency_events")
-}
-
-// AI Insights for Predictive Intelligence
-model AIInsight {
-  id                String   @id @default(cuid())
-  insightType       String   // 'risk' | 'opportunity' | 'anomaly' | 'recommendation'
-  entityType        String   // 'company' | 'user' | 'system'
-  entityId          String
-  confidence        Float    // 0-1
-  description       String
-  prediction        Json?    // Predicted outcome
-  recommendedActions Json?  // Suggested actions
-  expiresAt         DateTime?
-  isResolved        Boolean  @default(false)
-  resolvedAt       DateTime?
-  createdAt         DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@index([insightType])
-  @@map("ai_insights")
-}
-
-// Dashboard Config for Personalized Oversight
-model DashboardConfig {
-  id                String   @id @default(cuid())
-  superAdminId      String   @unique
-  layout            Json     // Dashboard layout configuration
-  widgets           Json     // Array of widget configurations
-  preferences       Json     // User preferences
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  superAdmin        SuperAdminUser @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
-
-  @@map("dashboard_configs")
+    @@map("regulatory_reports")
 }

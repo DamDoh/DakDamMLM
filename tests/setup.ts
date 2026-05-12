@@ -6,23 +6,13 @@
  * Created: 2025-11-20 (Enhancement)
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { jest } from '@jest/globals';
 
 // Global test timeout
 jest.setTimeout(30000);
 
 // Mock implementations for external services
-jest.mock('@/lib/database', () => ({
-  prisma: new PrismaClient({
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL || 'file:./test.db'
-      }
-    }
-  })
-}));
-
 jest.mock('@/lib/apm-monitoring', () => ({
   apmMonitoring: {
     recordError: jest.fn(),
@@ -115,10 +105,9 @@ jest.mock('ioredis', () => jest.fn(() => ({
 })));
 
 // Global test utilities
-// @ts-ignore - Type conflicts with other test setup files that define different testUtils
-(global as any).testUtils = {
+global.testUtils = {
   // Create test user
-  createTestUser: (overrides: any = {}) => ({
+  createTestUser: (overrides = {}) => ({
     id: 'test-user-id',
     email: 'test@example.com',
     phoneNumber: '+1234567890',
@@ -154,7 +143,7 @@ jest.mock('ioredis', () => jest.fn(() => ({
   }),
 
   // Create test product
-  createTestProduct: (overrides: any = {}) => ({
+  createTestProduct: (overrides = {}) => ({
     id: 'test-product-id',
     name: 'Test Product',
     description: 'A test product',
@@ -177,7 +166,7 @@ jest.mock('ioredis', () => jest.fn(() => ({
   }),
 
   // Create test order
-  createTestOrder: (overrides: any = {}) => ({
+  createTestOrder: (overrides = {}) => ({
     id: 'test-order-id',
     orderId: 'ORD-001',
     userId: 'test-user-id',
@@ -194,7 +183,7 @@ jest.mock('ioredis', () => jest.fn(() => ({
   }),
 
   // Create test commission
-  createTestCommission: (overrides: any = {}) => ({
+  createTestCommission: (overrides = {}) => ({
     id: 'test-commission-id',
     userId: 'test-user-id',
     date: new Date(),
@@ -206,7 +195,7 @@ jest.mock('ioredis', () => jest.fn(() => ({
   }),
 
   // Mock request/response objects
-  createMockRequest: (overrides: any = {}) => ({
+  createMockRequest: (overrides = {}) => ({
     method: 'GET',
     url: 'http://localhost:3000/api/test',
     headers: {
@@ -226,7 +215,6 @@ jest.mock('ioredis', () => jest.fn(() => ({
 
   // Database cleanup utilities
   cleanupDatabase: async () => {
-    const { prisma } = await import('@/lib/database');
     // Clean up in reverse dependency order
     await prisma.auditLog.deleteMany();
     await prisma.inventoryTransaction.deleteMany();
@@ -239,7 +227,7 @@ jest.mock('ioredis', () => jest.fn(() => ({
     await prisma.genealogyMovement.deleteMany();
     await prisma.stockRequestItem.deleteMany();
     await prisma.stockRequest.deleteMany();
-    await (prisma as any).ecommTopupRequest.deleteMany();
+    await prisma.ecashTopupRequest.deleteMany();
     await prisma.notificationPreference.deleteMany();
     await prisma.notification.deleteMany();
     await prisma.memberProgress.deleteMany();
@@ -374,7 +362,6 @@ afterAll(async () => {
   console.log('Cleaning up test environment...');
 
   // Close database connections
-  const { prisma } = await import('@/lib/database');
   await prisma.$disconnect();
 });
 
@@ -383,7 +370,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
 
   // Clean database before each test
-  await (global as any).testUtils.cleanupDatabase();
+  await global.testUtils.cleanupDatabase();
 });
 
 afterEach(async () => {
@@ -391,10 +378,10 @@ afterEach(async () => {
 });
 
 // Export types for TypeScript
-// Note: Type may conflict with services/commission-service/tests/setup.ts
-// Using any to allow different test setups to coexist
 declare global {
-  // @ts-ignore - Allow different test setup files to define different testUtils types
-  // eslint-disable-next-line no-var
-  var testUtils: any;
+  namespace NodeJS {
+    interface Global {
+      testUtils: typeof global.testUtils;
+    }
+  }
 }
