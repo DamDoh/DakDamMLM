@@ -1,0 +1,343 @@
+services:
+  # Shared infrastructure
+  postgres:
+    image: postgres:15-alpine
+    container_name: mlm-postgres
+    environment:
+      POSTGRES_DB: dakdam_db
+      POSTGRES_USER: mlm_user
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change_me_locally}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlm_user -d dakdam_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: mlm-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mlm-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS:-change_me_locally}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+
+  # Microservices
+  user-service:
+    build:
+      context: ../../services/user-service
+      dockerfile: Dockerfile
+    container_name: mlm-user-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      JWT_SECRET: "${JWT_SECRET:-change_me_jwt_secret}"
+      JWT_EXPIRES_IN: 7d
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  commission-service:
+    build:
+      context: ../../services/commission-service
+      dockerfile: Dockerfile
+    container_name: mlm-commission-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3002
+    ports:
+      - "3002:3002"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  genealogy-service:
+    build:
+      context: ../../services/genealogy-service
+      dockerfile: Dockerfile
+    container_name: mlm-genealogy-service
+    environment:
+      # Server Configuration
+      PORT: 3003
+      NODE_ENV: production
+
+      # Database
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+
+      # Caching (Optional)
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+
+      # Message Queue (Optional)
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+
+      # Authentication
+      JWT_SECRET: "${JWT_SECRET:-change_me_jwt_secret}"
+
+      # CORS
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+
+      # Service URLs for inter-service communication
+      USER_SERVICE_URL: http://user-service:3001
+      COMMISSION_SERVICE_URL: http://commission-service:3002
+      NOTIFICATION_SERVICE_URL: http://notification-service:3005
+
+      # Performance Tuning
+      MAX_TREE_DEPTH: 10
+      DEFAULT_PAGE_SIZE: 50
+      MAX_PAGE_SIZE: 100
+    ports:
+      - "3003:3003"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+      user-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  order-service:
+    build:
+      context: ../../services/order-service
+      dockerfile: Dockerfile
+    container_name: mlm-order-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3004
+    ports:
+      - "3004:3004"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ../../services/notification-service
+      dockerfile: Dockerfile
+    container_name: mlm-notification-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3005
+      SENDGRID_API_KEY: "${SENDGRID_API_KEY:-SG.your_sendgrid_api_key_here}"
+      TWILIO_ACCOUNT_SID: "${TWILIO_ACCOUNT_SID:-ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx}"
+      TWILIO_AUTH_TOKEN: "${TWILIO_AUTH_TOKEN:-your_twilio_auth_token}"
+      TWILIO_FROM_NUMBER: "${TWILIO_FROM_NUMBER:-+1234567890}"
+      FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:-mlm-platform-xxxxx}"
+      NODE_ENV: production
+    ports:
+      - "3005:3005"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  otp-service:
+    build:
+      context: ../../services/otp-service
+      dockerfile: Dockerfile
+    container_name: mlm-otp-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3006
+    ports:
+      - "3006:3006"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ../../services/payment-service
+      dockerfile: Dockerfile
+    container_name: mlm-payment-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3008
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-sk_test_your_stripe_secret_key_here}"
+      PAYPAL_CLIENT_ID: "${PAYPAL_CLIENT_ID:-your_paypal_client_id}"
+      PAYPAL_CLIENT_SECRET: "${PAYPAL_CLIENT_SECRET:-your_paypal_client_secret}"
+    ports:
+      - "3008:3008"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ../../services/analytics-service
+      dockerfile: Dockerfile
+    container_name: mlm-analytics-service
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://admin:change_me_locally@rabbitmq:5672}"
+      PORT: 3007
+    ports:
+      - "3007:3007"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ../../api-gateway
+      dockerfile: Dockerfile
+    container_name: mlm-api-gateway
+    environment:
+      USER_SERVICE_URL: http://user-service:3001
+      COMMISSION_SERVICE_URL: http://commission-service:3002
+      GENEALOGY_SERVICE_URL: http://genealogy-service:3003
+      ORDER_SERVICE_URL: http://order-service:3004
+      NOTIFICATION_SERVICE_URL: http://notification-service:3005
+      PAYMENT_SERVICE_URL: http://payment-service:3008
+      OTP_SERVICE_URL: http://otp-service:3006
+      ANALYTICS_SERVICE_URL: http://analytics-service:3007
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:change_me_locally@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - mlm-network
+    depends_on:
+      - user-service
+      - commission-service
+      - genealogy-service
+      - order-service
+      - notification-service
+      - payment-service
+      - otp-service
+      - analytics-service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  mlm-network:
+    driver: bridge

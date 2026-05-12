@@ -1,0 +1,915 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "White-Labeling and Multi-Tenancy API",
+    "version": "1.0.0",
+    "description": "API for managing branding, custom domains, and multi-tenant configurations",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com/v1",
+      "description": "Production server"
+    },
+    {
+      "url": "https://staging-api.example.com/v1",
+      "description": "Staging server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "AUTHENTICATION_ERROR",
+                  "AUTHORIZATION_ERROR",
+                  "NOT_FOUND",
+                  "CONFLICT",
+                  "RATE_LIMIT_EXCEEDED",
+                  "INTERNAL_SERVER_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "requestId": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message", "timestamp", "requestId"]
+          }
+        }
+      },
+      "BrandingConfig": {
+        "type": "object",
+        "properties": {
+          "logoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the company logo"
+          },
+          "faviconUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the favicon"
+          },
+          "headerLogoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the header logo"
+          },
+          "footerLogoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the footer logo"
+          },
+          "primaryColor": {
+            "type": "string",
+            "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+            "example": "#3B82F6",
+            "description": "Primary brand color in hex format"
+          },
+          "secondaryColor": {
+            "type": "string",
+            "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+            "example": "#64748B",
+            "description": "Secondary brand color in hex format"
+          },
+          "accentColor": {
+            "type": "string",
+            "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+            "example": "#10B981",
+            "description": "Accent color in hex format"
+          },
+          "customFonts": {
+            "type": "object",
+            "properties": {
+              "primary": {
+                "type": "string",
+                "description": "Primary font family for body text"
+              },
+              "secondary": {
+                "type": "string",
+                "description": "Secondary font family for headings"
+              }
+            }
+          },
+          "themeConfig": {
+            "type": "object",
+            "properties": {
+              "borderRadius": {
+                "type": "string",
+                "example": "8px",
+                "description": "Border radius for UI elements"
+              },
+              "shadow": {
+                "type": "string",
+                "example": "0 1px 3px rgba(0, 0, 0, 0.1)",
+                "description": "Box shadow for UI elements"
+              },
+              "spacing": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Custom spacing variables"
+              }
+            }
+          },
+          "customCss": {
+            "type": "string",
+            "description": "Additional custom CSS"
+          }
+        },
+        "required": ["primaryColor", "secondaryColor", "accentColor"]
+      },
+      "DomainMapping": {
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "description": "Company identifier"
+          },
+          "customDomain": {
+            "type": "string",
+            "description": "Custom domain name"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "description": "Whether domain ownership is verified"
+          },
+          "sslCertificate": {
+            "$ref": "#/components/schemas/SSLCertificate"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SSLCertificate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "issuedBy": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "autoRenew": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DomainVerificationResult": {
+        "type": "object",
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dnsRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DNSRecord"
+            }
+          }
+        }
+      },
+      "DNSRecord": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["A", "CNAME", "TXT"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "ttl": {
+            "type": "integer",
+            "minimum": 300,
+            "maximum": 86400
+          }
+        },
+        "required": ["type", "name", "value"]
+      }
+    }
+  },
+  "paths": {
+    "/branding/{companyId}": {
+      "get": {
+        "summary": "Get branding configuration",
+        "description": "Retrieve the current branding configuration for a company",
+        "tags": ["Branding"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branding configuration retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": {
+                      "$ref": "#/components/schemas/BrandingConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update branding configuration",
+        "description": "Update the branding configuration for a company",
+        "tags": ["Branding"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandingConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Branding configuration updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "branding": {
+                      "$ref": "#/components/schemas/BrandingConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/branding/{companyId}/upload": {
+      "post": {
+        "summary": "Upload branding asset",
+        "description": "Upload a logo, favicon, or other branding asset",
+        "tags": ["Branding"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file to upload"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["logo", "favicon", "header", "footer"],
+                    "description": "Type of asset being uploaded"
+                  }
+                },
+                "required": ["file", "type"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Asset uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete branding asset",
+        "description": "Delete a specific branding asset",
+        "tags": ["Branding"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["logo", "favicon", "header", "footer"]
+            },
+            "description": "Type of asset to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/domains/{companyId}": {
+      "get": {
+        "summary": "Get domain mapping",
+        "description": "Retrieve domain mapping information for a company",
+        "tags": ["Domains"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domain mapping retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domainMapping": {
+                      "$ref": "#/components/schemas/DomainMapping"
+                    },
+                    "securityStatus": {
+                      "type": "object",
+                      "properties": {
+                        "isVerified": { "type": "boolean" },
+                        "isSecure": { "type": "boolean" },
+                        "hasSSL": { "type": "boolean" },
+                        "securityScore": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "summary": "Map custom domain",
+        "description": "Map a custom domain to a company",
+        "tags": ["Domains"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customDomain": {
+                    "type": "string",
+                    "example": "example.com",
+                    "description": "Custom domain to map"
+                  }
+                },
+                "required": ["customDomain"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domain mapped successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domainMapping": {
+                      "$ref": "#/components/schemas/DomainMapping"
+                    },
+                    "dnsRecords": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DNSRecord"
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "put": {
+        "summary": "Verify domain ownership",
+        "description": "Verify ownership of a custom domain",
+        "tags": ["Domains"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challengeType": {
+                    "type": "string",
+                    "enum": ["dns-txt", "file", "meta-tag"]
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Verification value"
+                  }
+                },
+                "required": ["challengeType", "value"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Domain verification completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainVerificationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/domains/{companyId}/ssl": {
+      "post": {
+        "summary": "Request SSL certificate",
+        "description": "Request an SSL certificate for a custom domain",
+        "tags": ["SSL"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Contact email for certificate"
+                  },
+                  "challengeType": {
+                    "type": "string",
+                    "enum": ["http-01", "dns-01"],
+                    "default": "http-01"
+                  }
+                },
+                "required": ["email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSL certificate requested successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificate": {
+                      "type": "object",
+                      "properties": {
+                        "domain": { "type": "string" },
+                        "issuedAt": { "type": "string", "format": "date-time" },
+                        "expiresAt": { "type": "string", "format": "date-time" },
+                        "issuer": { "type": "string" }
+                      }
+                    },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "summary": "Renew SSL certificate",
+        "description": "Renew an existing SSL certificate",
+        "tags": ["SSL"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSL certificate renewed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificate": {
+                      "type": "object",
+                      "properties": {
+                        "domain": { "type": "string" },
+                        "issuedAt": { "type": "string", "format": "date-time" },
+                        "expiresAt": { "type": "string", "format": "date-time" },
+                        "issuer": { "type": "string" }
+                      }
+                    },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Get SSL certificate status",
+        "description": "Get the status of SSL certificate for a domain",
+        "tags": ["SSL"],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Company identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSL status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": { "type": "string" },
+                    "hasCertificate": { "type": "boolean" },
+                    "expiryInfo": {
+                      "type": "object",
+                      "properties": {
+                        "expiresAt": { "type": "string", "format": "date-time" },
+                        "daysUntilExpiry": { "type": "integer" },
+                        "needsRenewal": { "type": "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/monitoring/health": {
+      "get": {
+        "summary": "System health check",
+        "description": "Check the health status of the system",
+        "tags": ["Monitoring"],
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "uptime": { "type": "number" },
+                    "tenants": { "type": "integer" },
+                    "alerts": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/monitoring/metrics": {
+      "get": {
+        "summary": "System metrics",
+        "description": "Get detailed system performance metrics",
+        "tags": ["Monitoring"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "tenants": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "integer" },
+                        "metrics": { "type": "array" },
+                        "alerts": { "type": "array" }
+                      }
+                    },
+                    "cache": {
+                      "type": "object",
+                      "properties": {
+                        "size": { "type": "integer" },
+                        "maxSize": { "type": "integer" }
+                      }
+                    },
+                    "security": {
+                      "type": "object",
+                      "properties": {
+                        "activeChallenges": { "type": "integer" },
+                        "activeRateLimits": { "type": "integer" },
+                        "blockedDomains": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "BadRequest": {
+        "description": "Bad Request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not Found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,217 @@
+@import url('https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Khmer font fallbacks */
+.khmer-text {
+  font-family: 'Noto Sans Khmer', 'Khmer OS', 'Khmer OS System', 'Khmer UI', 'Battambang', 'Droid Sans Khmer', 'Hanuman', 'sans-serif';
+  font-feature-settings: 'liga' on, 'calt' on;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* RTL Support for Arabic */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+body {
+  font-family: 'PT Sans', sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 240 17% 94%; /* #F0F0F0 */
+    --foreground: 222.2 47.4% 11.2%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+
+    --primary: 195 53% 79%; /* #ADD8E6 */
+    --primary-foreground: 222.2 47.4% 11.2%; /* Darker text for light blue */
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 120 73% 75%; /* #90EE90 */
+    --accent-foreground: 222.2 47.4% 11.2%; /* Darker text for soft green */
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 195 53% 79%;
+
+    --radius: 0.5rem;
+
+    --chart-1: 195 53% 79%;
+    --chart-2: 120 73% 75%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-ring: 195 53% 79%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 195 53% 79%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 120 73% 75%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 195 53% 79%;
+
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .tree-container {
+    @apply w-full overflow-x-auto py-8 text-center;
+    transition: all 0.5s ease-in-out;
+  }
+  .tree {
+    @apply inline-block min-w-full whitespace-nowrap;
+    animation: fadeIn 0.5s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .tree ul {
+    @apply p-0 m-0 text-center;
+    position: relative;
+    
+    display: flex;
+    justify-content: center;
+  }
+  .tree ul ul {
+      @apply pt-12;
+  }
+  .tree ul ul::before {
+    content: '';
+    @apply absolute top-0 left-1/2 border-l-2 border-solid h-12;
+    border-color: rgb(34 211 238);
+    transform: translateX(-1px);
+    display: none;
+  }
+  .tree li {
+    @apply inline-block align-top text-center list-none relative p-2;
+    
+    flex-grow: 1;
+    flex-basis: 0;
+  }
+  .tree li::before, .tree li::after {
+    content: '';
+    @apply absolute top-0 right-1/2 border-t-2 border-solid w-1/2 h-12;
+    border-color: rgb(34 211 238);
+  }
+  .tree li::after {
+    @apply right-auto left-1/2 border-l-2;
+    border-color: rgb(34 211 238);
+  }
+  .tree li:only-child {
+    @apply p-0;
+  }
+   .tree li:only-child > * {
+    @apply p-0;
+   }
+  .tree li:only-child::before, .tree li:only-child::after {
+    @apply hidden;
+  }
+  .tree li:first-child::before, .tree li:last-child::after {
+    @apply border-0;
+  }
+  .tree li:last-child::before {
+    @apply border-r-2 rounded-tr-md;
+    border-color: rgb(34 211 238);
+  }
+  .tree ul > li:first-child:after {
+      @apply rounded-tl-md;
+  }
+  .tree ul ul > li:first-child::after {
+      @apply rounded-tl-md;
+  }
+    
+  .tree ul > li:first-child:after {
+      @apply rounded-tl-none;
+  }
+  .tree > ul > li {
+      padding-top: 0;
+  }
+
+  /* Phone Input Custom Styling */
+  .phone-input-wrapper {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+  
+  .phone-input-wrapper .phone-input-custom {
+    width: 100%;
+    display: flex;
+  }
+  
+  .phone-input-wrapper .phone-input-custom .PhoneInputCountry {
+    display: none !important;
+  }
+  
+  .phone-input-wrapper .phone-input-custom .PhoneInputInput {
+    padding-left: 12px !important;
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+}

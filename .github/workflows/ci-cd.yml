@@ -1,0 +1,465 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+env:
+  NODE_VERSION: '18'
+  DATABASE_URL: "file:./test.db"
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+jobs:
+  # Quality Gates Job
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Check TypeScript types
+        run: npm run type-check
+
+      - name: Run security audit
+        run: npm audit --audit-level high
+
+      - name: Check code formatting
+        run: npm run format:check
+
+      - name: Run dependency vulnerability check
+        run: |
+          npm install --save-dev audit-ci
+          npx audit-ci --config audit-ci.json
+
+  # Unit Tests Job
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup test database
+        run: |
+          npm run db:migrate:test
+          npm run db:seed:test
+
+      - name: Run unit tests
+        run: npm run test:unit
+        env:
+          DATABASE_URL: "postgresql://test_user:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/test_db"
+          REDIS_URL: "redis://localhost:6379"
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unit-tests
+          name: Unit Tests Coverage
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: unit-test-results
+          path: test-results/
+
+  # Integration Tests Job
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: integration_test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup integration database
+        run: |
+          npm run db:migrate:test
+          npm run db:seed:test
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: "postgresql://test_user:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/integration_test_db"
+          REDIS_URL: "redis://localhost:6379"
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-results
+          path: test-results/
+
+  # Performance Tests Job
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: perf_test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup performance database
+        run: |
+          npm run db:migrate:test
+          npm run db:seed:performance
+
+      - name: Run performance tests
+        run: npm run test:performance
+        env:
+          DATABASE_URL: "postgresql://test_user:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/perf_test_db"
+          REDIS_URL: "redis://localhost:6379"
+
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-test-results
+          path: test-results/
+
+  # E2E Tests Job
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: performance-tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: e2e_test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Setup E2E database
+        run: |
+          npm run db:migrate:test
+          npm run db:seed:e2e
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application
+        run: |
+          npm run start:test &
+          sleep 30
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: "postgresql://test_user:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/e2e_test_db"
+          REDIS_URL: "redis://localhost:6379"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-results
+          path: |
+            test-results/
+            playwright-report/
+            test-results/
+
+  # Security Tests Job
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SAST (Static Application Security Testing)
+        run: |
+          npm install --save-dev eslint-plugin-security
+          npx eslint src/ --ext .ts,.tsx --config .eslintrc.security.json
+
+      - name: Run dependency vulnerability scan
+        run: |
+          npm audit --audit-level moderate --json > audit-results.json
+          cat audit-results.json
+
+      - name: Run secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-scan-results
+          path: |
+            audit-results.json
+            gitleaks-report.json
+
+  # Build and Deploy Job
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, performance-tests, e2e-tests, security-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+
+      - name: Run production smoke tests
+        run: npm run test:smoke
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+
+      - name: Build Docker image
+        run: |
+          docker build -t dakdam-mlm:${{ github.sha }} .
+          docker tag dakdam-mlm:${{ github.sha }} dakdam-mlm:latest
+
+      - name: Push to container registry
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker tag dakdam-mlm:${{ github.sha }} ${{ secrets.DOCKER_REGISTRY }}/dakdam-mlm:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_REGISTRY }}/dakdam-mlm:${{ github.sha }}
+          docker tag dakdam-mlm:latest ${{ secrets.DOCKER_REGISTRY }}/dakdam-mlm:latest
+          docker push ${{ secrets.DOCKER_REGISTRY }}/dakdam-mlm:latest
+
+      - name: Deploy to staging
+        if: github.ref == 'refs/heads/develop'
+        run: |
+          echo "Deploying to staging environment"
+          # Add your staging deployment commands here
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploying to production environment"
+          # Add your production deployment commands here
+          # Example: kubectl set image deployment/dakdam-mlm dakdam-mlm=${{ secrets.DOCKER_REGISTRY }}/dakdam-mlm:${{ github.sha }}
+
+      - name: Run post-deployment tests
+        run: |
+          sleep 60  # Wait for deployment to complete
+          npm run test:post-deployment
+          # Add health checks and smoke tests
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🚀 DakDam MLM deployment successful! Version: ${{ github.sha }}"}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"❌ DakDam MLM deployment failed! Check logs for details."}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Release Job
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Rollback Job (Manual trigger)
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'rollback'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rollback deployment
+        run: |
+          echo "Rolling back to previous version"
+          # Add rollback commands here
+          # Example: kubectl rollout undo deployment/dakdam-mlm
+
+      - name: Notify rollback
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"🔄 DakDam MLM rollback initiated"}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}

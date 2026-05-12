@@ -1,0 +1,264 @@
+// Prisma schema for Order Service
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  userId          String
+  status          OrderStatus @default(PENDING)
+  totalAmount     Float
+  taxAmount       Float       @default(0)
+  shippingAmount  Float       @default(0)
+  discountAmount  Float       @default(0)
+  currency        String      @default("USD")
+  paymentMethod   String?
+  paymentStatus   PaymentStatus @default(PENDING)
+  shippingAddress Json?
+  billingAddress  Json?
+  notes           String?
+  orderedAt       DateTime    @default(now())
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+  shipments       Shipment[]
+  refunds         Refund[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([orderedAt])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  productName String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  pv          Float   @default(0) // Product Value for commissions
+  sku         String?
+  variant     Json?   // Product variant details
+  status      OrderItemStatus @default(PENDING)
+
+  // Relations
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([status])
+  @@map("order_items")
+}
+
+model Product {
+  id            String     @id @default(cuid())
+  name          String
+  description   String?
+  sku           String     @unique
+  price         Float
+  pv            Float      @default(0) // Product Value
+  cost          Float?
+  category      String
+  brand         String?
+  images        Json?      // Array of image URLs
+  variants      Json?      // Product variants (size, color, etc.)
+  attributes    Json?      // Additional product attributes
+  isActive      Boolean    @default(true)
+  isDigital     Boolean    @default(false)
+  weight        Float?
+  dimensions    Json?      // {length, width, height}
+  stockQuantity Int        @default(0)
+  minStockLevel Int        @default(0)
+  maxStockLevel Int?
+  tags          String[]
+  seoTitle      String?
+  seoDescription String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  orderItems    OrderItem[]
+  inventoryLogs InventoryLog[]
+
+  @@index([sku])
+  @@index([category])
+  @@index([isActive])
+  @@index([stockQuantity])
+  @@map("products")
+}
+
+model InventoryLog {
+  id            String   @id @default(cuid())
+  productId     String
+  changeType    InventoryChangeType
+  quantityChange Int
+  previousStock Int
+  newStock      Int
+  reason        String
+  referenceId   String?  // Order ID, shipment ID, etc.
+  referenceType String?  // 'order', 'shipment', 'adjustment', etc.
+  performedBy   String
+  performedAt   DateTime @default(now())
+
+  // Relations
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([changeType])
+  @@index([performedAt])
+  @@map("inventory_logs")
+}
+
+model Shipment {
+  id              String   @id @default(cuid())
+  orderId         String
+  trackingNumber  String?
+  carrier         String?
+  shippingMethod  String
+  shippingCost    Float
+  status          ShipmentStatus @default(PENDING)
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  estimatedDelivery DateTime?
+  shippingAddress Json
+  weight          Float?
+  dimensions      Json?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+model Refund {
+  id            String   @id @default(cuid())
+  orderId       String
+  amount        Float
+  reason        String
+  status        RefundStatus @default(PENDING)
+  processedAt   DateTime?
+  processedBy   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@map("refunds")
+}
+
+model Cart {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  items       Json     // Array of cart items
+  totalAmount Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("carts")
+}
+
+// User model (simplified for order service)
+model User {
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  fullName    String
+  memberId    String?  @unique
+  rank        String   @default("Member")
+  sponsorId   String?
+  isAdmin     Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  orders      Order[]
+  cart        Cart?
+
+  @@index([email])
+  @@index([memberId])
+  @@index([sponsorId])
+  @@index([active])
+  @@map("users")
+}
+
+// Enums
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum OrderItemStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum InventoryChangeType {
+  INCREASE
+  DECREASE
+  ADJUSTMENT
+  RETURN
+}
+
+enum ShipmentStatus {
+  PENDING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  RETURNED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  REJECTED
+}

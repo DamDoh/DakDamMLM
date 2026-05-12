@@ -1,0 +1,43 @@
+# GSM Modem SMS Service
+# Self-hosted SMS delivery using GSM modem hardware
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    libffi-dev \
+    libssl-dev \
+    build-essential \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    flask \
+    pyserial \
+    python-gsmmodem \
+    requests \
+    schedule
+
+# Create app directory
+WORKDIR /app
+
+# Copy application code
+COPY gsm-modem-service/ /app/
+
+# Create log directory
+RUN mkdir -p /var/log/gsm
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the service
+CMD ["python3", "gsm_modem_service.py"]

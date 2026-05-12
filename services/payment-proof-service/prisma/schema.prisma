@@ -1,0 +1,285 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User roles and permissions (simplified for this service)
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  role     String // 'buyer', 'upline', 'admin', 'auditor'
+  uplineId String?
+
+  // Relations
+  proofs         PaymentProof[]
+  approvals      PaymentProof[] @relation("Approver")
+  disputes       Dispute[]
+  auditLogs      AuditLog[]
+  qrCodes        QRCode[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// Orders (reference to main system)
+model Order {
+  id     String @id @default(cuid())
+  userId String
+  amount Decimal @default(0)
+  status String @default("pending") // 'pending', 'paid', 'fulfilled', 'cancelled'
+
+  // Relations
+  proofs PaymentProof[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+// Payment proofs
+model PaymentProof {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  // File information
+  fileName    String
+  fileSize    Int
+  fileType    String
+  fileHash    String   @unique // SHA-256 hash for integrity and duplicate detection
+  encryptedPath String // Path to encrypted file in storage
+
+  // OCR and validation data
+  ocrData     Json? // Extracted text and payment details
+  bankReference String?
+  amount      Decimal?
+
+  // Status and workflow
+  status      String @default("uploaded") // 'uploaded', 'approved', 'rejected', 'escalated'
+  reviewedById String?
+  reviewedBy  User?  @relation("Approver", fields: [reviewedById], references: [id])
+  reviewedAt  DateTime?
+  rejectionReason String?
+  approvalNotes String?
+
+  // Metadata
+  ipAddress   String?
+  userAgent   String?
+  uploadSource String @default("web") // 'web', 'mobile', 'api'
+
+  // Relations
+  transactions Transaction[]
+  disputes     Dispute[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_proofs")
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([fileHash])
+}
+
+// QR codes for payment facilitation
+model QRCode {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // QR code data
+  qrData   String // JSON string containing payment details
+  qrImage  String // Path to generated QR image
+  amount   Decimal?
+  currency String @default("USD")
+
+  // Validity
+  isActive Boolean @default(true)
+  expiresAt DateTime?
+  usageCount Int @default(0)
+  maxUses   Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("qr_codes")
+  @@index([userId])
+  @@index([isActive])
+}
+
+// Transactions (audit trail)
+model Transaction {
+  id         String @id @default(cuid())
+  proofId    String
+  proof      PaymentProof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+
+  action     String // 'upload', 'approve', 'reject', 'escalate'
+  userId     String
+  amount     Decimal?
+  bankReference String?
+
+  // Audit data
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json? // Additional context
+
+  createdAt DateTime @default(now())
+
+  @@map("transactions")
+  @@index([proofId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Disputes and appeals
+model Dispute {
+  id            String @id @default(cuid())
+  proofId       String
+  proof         PaymentProof @relation(fields: [proofId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User   @relation(fields: [userId], references: [id])
+
+  type          String // 'amount_mismatch', 'invalid_proof', 'duplicate', 'other'
+  reason        String
+  description   String?
+  evidence      Json? // Additional files or information
+
+  status        String @default("pending") // 'pending', 'resolved', 'rejected', 'escalated'
+  resolution    String?
+  resolvedById  String?
+  resolvedAt    DateTime?
+
+  // Escalation
+  escalatedToAdmin Boolean @default(false)
+  adminNotes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("disputes")
+  @@index([proofId])
+  @@index([userId])
+  @@index([status])
+}
+
+// Audit logs
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  action    String // 'upload_proof', 'approve_proof', 'reject_proof', 'create_qr', etc.
+  entity    String // 'payment_proof', 'qr_code', 'dispute', etc.
+  entityId  String?
+
+  // Changes tracking
+  oldValues Json?
+  newValues Json?
+
+  // Context
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// Fraud prevention
+model FraudAlert {
+  id          String @id @default(cuid())
+  type        String // 'duplicate_hash', 'suspicious_pattern', 'rate_limit_exceeded'
+  severity    String @default("medium") // 'low', 'medium', 'high', 'critical'
+
+  description String
+  proofId     String?
+  userId      String?
+
+  // Detection data
+  indicators  Json // Fraud indicators that triggered the alert
+  confidence  Float // Confidence score (0-1)
+
+  status      String @default("open") // 'open', 'investigating', 'resolved', 'false_positive'
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  resolution  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("fraud_alerts")
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+}
+
+// File integrity and encryption keys
+model FileEncryption {
+  id          String @id @default(cuid())
+  proofId     String @unique
+  algorithm   String @default("aes-256-gcm")
+  key         String // Encrypted key (encrypted with service key)
+  iv          String // Initialization vector
+  tag         String? // Authentication tag for GCM
+
+  createdAt DateTime @default(now())
+
+  @@map("file_encryption")
+}
+
+// Notification queue
+model NotificationQueue {
+  id       String @id @default(cuid())
+  userId   String
+  type     String // 'email', 'sms', 'push'
+  priority String @default("normal") // 'low', 'normal', 'high', 'urgent'
+
+  subject  String?
+  message  String
+  data     Json? // Template data
+
+  status   String @default("pending") // 'pending', 'sent', 'failed'
+  sentAt   DateTime?
+  error    String?
+
+  // Retry logic
+  retryCount Int @default(0)
+  maxRetries Int @default(3)
+  nextRetryAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_queue")
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+}
+
+// System metrics
+model SystemMetric {
+  id          String @id @default(cuid())
+  metric      String // 'upload_count', 'approval_rate', 'fraud_detected', etc.
+  value       Float
+  unit        String? // 'count', 'percentage', 'milliseconds', etc.
+  dimensions  Json? // Additional dimensions like {period: 'daily', user_role: 'buyer'}
+
+  timestamp   DateTime @default(now())
+
+  @@map("system_metrics")
+  @@index([metric])
+  @@index([timestamp])
+}

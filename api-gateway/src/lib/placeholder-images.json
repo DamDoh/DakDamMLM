@@ -1,0 +1,130 @@
+{
+  "images": [
+    {
+      "id": "avatar-M001",
+      "description": "Avatar for M001",
+      "imageUrl": "https://picsum.photos/seed/avatar1/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M002",
+      "description": "Avatar for M002",
+      "imageUrl": "https://picsum.photos/seed/avatar2/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M003",
+      "description": "Avatar for M003",
+      "imageUrl": "https://picsum.photos/seed/avatar3/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "avatar-M004",
+      "description": "Avatar for M004",
+      "imageUrl": "https://picsum.photos/seed/avatar4/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M005",
+      "description": "Avatar for M005",
+      "imageUrl": "https://picsum.photos/seed/avatar5/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "avatar-M006",
+      "description": "Avatar for M006",
+      "imageUrl": "https://picsum.photos/seed/avatar6/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M007",
+      "description": "Avatar for M007",
+      "imageUrl": "https://picsum.photos/seed/avatar7/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "avatar-M008",
+      "description": "Avatar for M008",
+      "imageUrl": "https://picsum.photos/seed/avatar8/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M009",
+      "description": "Avatar for M009",
+      "imageUrl": "https://picsum.photos/seed/avatar9/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "avatar-M010",
+      "description": "Avatar for M010",
+      "imageUrl": "https://picsum.photos/seed/avatar10/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M011",
+      "description": "Avatar for M011",
+      "imageUrl": "https://picsum.photos/seed/avatar11/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "avatar-M012",
+      "description": "Avatar for M012",
+      "imageUrl": "https://picsum.photos/seed/avatar12/200/200",
+      "data-ai-hint": "male portrait"
+    },
+    {
+      "id": "avatar-M013",
+      "description": "Avatar for M013",
+      "imageUrl": "https://picsum.photos/seed/avatar13/200/200",
+      "data-ai-hint": "female portrait"
+    },
+    {
+      "id": "prod_001_img",
+      "description": "Wellness Shake",
+      "imageUrl": "https://picsum.photos/seed/prod1/400/400",
+      "data-ai-hint": "wellness shake"
+    },
+    {
+      "id": "prod_002_img",
+      "description": "Energy Boost Capsules",
+      "imageUrl": "https://picsum.photos/seed/prod2/400/400",
+      "data-ai-hint": "vitamin capsules"
+    },
+    {
+      "id": "prod_003_img",
+      "description": "Youthful Glow Serum",
+      "imageUrl": "https://picsum.photos/seed/prod3/400/400",
+      "data-ai-hint": "skincare serum"
+    },
+    {
+      "id": "prod_004_img",
+      "description": "Immune Support Tincture",
+      "imageUrl": "https://picsum.photos/seed/prod4/400/400",
+      "data-ai-hint": "herbal tincture"
+    },
+    {
+      "id": "prod_005_img",
+      "description": "Organic Greens Powder",
+      "imageUrl": "https://picsum.photos/seed/prod5/400/400",
+      "data-ai-hint": "greens powder"
+    },
+    {
+      "id": "prod_006_img",
+      "description": "Restful Sleep Aid",
+      "imageUrl": "https://picsum.photos/seed/prod6/400/400",
+      "data-ai-hint": "sleep aid"
+    },
+    {
+      "id": "prod_007_img",
+      "description": "Joint Mobility Complex",
+      "imageUrl": "https://picsum.photos/seed/prod7/400/400",
+      "data-ai-hint": "joint supplement"
+    },
+    {
+      "id": "prod_008_img",
+      "description": "Probiotic Gut Health",
+      "imageUrl": "https://picsum.photos/seed/prod8/400/400",
+      "data-ai-hint": "probiotic supplement"
+    }
+  ]
+}

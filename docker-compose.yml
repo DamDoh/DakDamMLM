@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mlm-postgres
+    environment:
+      POSTGRES_DB: dakdam_db
+      POSTGRES_USER: mlm_user
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change_me_locally}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlm_user -d dakdam_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: mlm-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mlm-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmqctl status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  app:
+    build: .
+    container_name: mlm-app
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dakdam_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mlm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_locally}
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:${POSTGRES_PASSWORD:-change_me_locally}@postgres:5432/dakdam_db}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      RABBITMQ_URL: "${RABBITMQ_URL:-amqp://rabbitmq:5672}"
+      NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-change-me-nextauth-test-secret}"
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
+      NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: npm run dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  mlm-network:
+    driver: bridge

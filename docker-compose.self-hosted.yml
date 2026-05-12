@@ -1,0 +1,251 @@
+# Self-Hosted MLM Platform - Complete Ecosystem
+# This configuration provides 100% self-operation with no external dependencies
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Self-hosted)
+  postgres:
+    image: postgres:15-alpine
+    container_name: mlm-postgres
+    environment:
+      POSTGRES_DB: dakdam_db
+      POSTGRES_USER: mlm_user
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change_me_locally}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlm_user -d dakdam_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache (Optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: mlm-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Postfix Email Server (Self-hosted SMTP)
+  postfix:
+    image: postfixadmin/postfix:latest
+    container_name: mlm-postfix
+    environment:
+      # Postfix configuration
+      POSTFIX_myhostname: mail.mlm-platform.local
+      POSTFIX_mydomain: mlm-platform.local
+      POSTFIX_myorigin: mlm-platform.local
+      POSTFIX_inet_interfaces: all
+      POSTFIX_smtp_auth: "yes"
+      POSTFIX_smtp_tls: "yes"
+      POSTFIX_smtp_sasl_auth: "yes"
+
+      # SASL authentication
+      SASL_PASSWORD_FILE: /etc/postfix/sasl_passwd
+      SASL_TYPE: cyrus
+
+      # TLS certificates (generate self-signed for development)
+      TLS_CERT_FILE: /etc/ssl/certs/ssl-cert-snakeoil.pem
+      TLS_KEY_FILE: /etc/ssl/private/ssl-cert-snakeoil.key
+    volumes:
+      - postfix_data:/var/spool/postfix
+      - postfix_logs:/var/log/postfix
+      - ./postfix-config/sasl_passwd:/etc/postfix/sasl_passwd:ro
+      - ./ssl:/etc/ssl:ro
+    ports:
+      - "25:25"   # SMTP
+      - "587:587" # SMTP with TLS
+      - "465:465" # SMTPS
+    networks:
+      - mlm-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # Dovecot IMAP/POP3 Server (for email storage)
+  dovecot:
+    image: dovecot/dovecot:latest
+    container_name: mlm-dovecot
+    environment:
+      DOVECOT_HOSTNAME: mail.mlm-platform.local
+      DOVECOT_LDAP: "no"
+      DOVECOT_SQL: "yes"
+      DOVECOT_SSL: "yes"
+    volumes:
+      - dovecot_data:/var/mail
+      - dovecot_config:/etc/dovecot
+      - ./dovecot-config:/etc/dovecot/custom:ro
+    ports:
+      - "993:993" # IMAPS
+      - "995:995" # POP3S
+      - "143:143" # IMAP (optional)
+      - "110:110" # POP3 (optional)
+    networks:
+      - mlm-network
+    depends_on:
+      - postgres
+      - postfix
+    restart: unless-stopped
+
+  # GSM Modem Service (for SMS)
+  gsm-modem:
+    build:
+      context: .
+      dockerfile: Dockerfile.gsm-modem
+    container_name: mlm-gsm-modem
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0  # GSM modem device
+    environment:
+      MODEM_DEVICE: /dev/ttyUSB0
+      MODEM_BAUD: 115200
+      MODEM_PIN: ""  # Set if SIM card has PIN
+      SMS_CENTER: "+1234567890"  # SMS center number
+    volumes:
+      - gsm_logs:/var/log/gsm
+    ports:
+      - "8080:8080"  # HTTP API for SMS sending
+    networks:
+      - mlm-network
+    restart: unless-stopped
+    privileged: true
+
+  # Main MLM Application
+  mlm-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mlm-app
+    environment:
+      # Database
+      DATABASE_URL: "${DATABASE_URL:-postgresql://mlm_user:${POSTGRES_PASSWORD:-change_me_locally}@postgres:5432/dakdam_db}"
+
+      # Redis (optional)
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+
+      # JWT
+      JWT_SECRET: "${JWT_SECRET:-change_me_jwt_secret}"
+      JWT_EXPIRES_IN: 7d
+
+      # Email (self-hosted)
+      SMTP_HOST: postfix
+      SMTP_PORT: 587
+      SMTP_SECURE: false
+      SMTP_USER: admin@mlm-platform.local
+      SMTP_PASSWORD: secure_email_password
+      SMTP_FROM_EMAIL: noreply@mlm-platform.local
+      SMTP_FROM_NAME: "MLM Platform"
+
+      # SMS (GSM modem)
+      SMS_PROVIDER: gsm_modem
+      SMS_MODEM_API_URL: http://gsm-modem:8080
+      SMS_FROM_NUMBER: "+1234567890"
+
+      # Push Notifications (VAPID keys for self-hosted)
+      VAPID_PUBLIC_KEY: your-vapid-public-key
+      VAPID_PRIVATE_KEY: your-vapid-private-key
+
+      # Application
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NODE_ENV: production
+
+      # Self-hosted flags
+      SELF_HOSTED_EMAIL: true
+      SELF_HOSTED_SMS: true
+      SELF_HOSTED_DATABASE: true
+    ports:
+      - "3000:3000"
+    networks:
+      - mlm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: mlm-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - mlm-network
+    depends_on:
+      - mlm-app
+    restart: unless-stopped
+
+  # Monitoring Stack (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mlm-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - mlm-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mlm-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: secure_grafana_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - mlm-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  postfix_data:
+  postfix_logs:
+  dovecot_data:
+  dovecot_config:
+  gsm_logs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  mlm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

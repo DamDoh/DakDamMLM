@@ -1,0 +1,69 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Next.js application metrics
+  - job_name: 'nextjs-app'
+    static_configs:
+      - targets: ['web:3000']
+    scrape_interval: 10s
+    metrics_path: '/api/metrics'
+    params:
+      format: ['prometheus']
+
+  # Database metrics (if PostgreSQL exposes metrics)
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['db:5432']
+    scrape_interval: 30s
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # RabbitMQ metrics
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    params:
+      format: ['prometheus']
+
+  # Node.js process metrics (for each service)
+  - job_name: 'nodejs-services'
+    static_configs:
+      - targets: ['web:3000']
+    scrape_interval: 15s
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Remote write configuration (for sending metrics to external systems)
+# remote_write:
+#   - url: "https://prometheus-prod-10-prod-us-central-0.grafana.net/api/prom/push"
+#     authorization:
+#       credentials: "<GRAFANA_CLOUD_METRICS_PUBLISH_KEY>"
+
+# Remote read configuration (for querying metrics from external systems)
+# remote_read:
+#   - url: "https://prometheus-prod-10-prod-us-central-0.grafana.net/api/prom"
+#     authorization:
+#       credentials: "<GRAFANA_CLOUD_METRICS_QUERY_KEY>"
+#     read_recent: true

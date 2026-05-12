@@ -1,0 +1,256 @@
+// Prisma schema for Payment Service
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PaymentTransaction {
+  id                String            @id @default(cuid())
+  transactionId     String            @unique
+  userId            String
+  orderId           String?
+  commissionId      String?
+  type              TransactionType
+  method            PaymentMethod
+  provider          PaymentProvider
+  amount            Float
+  currency          String            @default("USD")
+  status            TransactionStatus @default(PENDING)
+  description       String?
+  metadata          Json?             // Provider-specific data
+  externalId        String?           // Provider's transaction ID
+  processedAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  refundedAt        DateTime?
+  refundAmount      Float             @default(0)
+  fees              Float             @default(0)
+  netAmount         Float
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet            Wallet?           @relation(fields: [userId], references: [userId])
+  refunds           Refund[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([commissionId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([transactionId])
+  @@map("payment_transactions")
+}
+
+model Wallet {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  balance       Float    @default(0)
+  pendingAmount Float    @default(0)
+  totalEarned   Float    @default(0)
+  totalWithdrawn Float   @default(0)
+  currency      String   @default("USD")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  PaymentTransaction[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("wallets")
+}
+
+model PayoutRequest {
+  id              String         @id @default(cuid())
+  userId          String
+  amount          Float
+  currency        String         @default("USD")
+  method          PayoutMethod
+  status          PayoutStatus   @default(PENDING)
+  accountDetails  Json           // Bank account, PayPal email, etc.
+  requestedAt     DateTime       @default(now())
+  processedAt     DateTime?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  failureReason   String?
+  transactionId   String?        // Reference to payment transaction
+  fees            Float          @default(0)
+  netAmount       Float
+  notes           String?
+
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("payout_requests")
+}
+
+model Refund {
+  id                String       @id @default(cuid())
+  transactionId     String
+  amount            Float
+  reason            String
+  status            RefundStatus @default(PENDING)
+  processedAt       DateTime?
+  completedAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?
+  externalRefundId  String?      // Provider's refund ID
+  metadata          Json?
+
+  // Relations
+  transaction       PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([status])
+  @@map("refunds")
+}
+
+model PaymentMethodConfig {
+  id            String   @id @default(cuid())
+  provider      PaymentProvider
+  method        PaymentMethod
+  name          String
+  isActive      Boolean  @default(true)
+  config        Json     // Provider-specific configuration
+  fees          Json?    // Fee structure
+  limits        Json?    // Transaction limits
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([provider])
+  @@index([method])
+  @@index([isActive])
+  @@map("payment_method_configs")
+}
+
+model WalletTransaction {
+  id          String            @id @default(cuid())
+  walletId    String
+  userId      String
+  type        WalletTransactionType
+  amount      Float
+  balanceBefore Float
+  balanceAfter  Float
+  description String
+  referenceId String?           // Order ID, Commission ID, etc.
+  referenceType String?         // 'order', 'commission', 'payout', etc.
+  createdAt   DateTime          @default(now())
+
+  // Relations
+  wallet      Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+// User model (simplified for payment service)
+model User {
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  fullName    String
+  memberId    String?  @unique
+  rank        String   @default("Member")
+  sponsorId   String?
+  isAdmin     Boolean  @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  transactions PaymentTransaction[]
+  wallet       Wallet?
+  payouts      PayoutRequest[]
+  walletTransactions WalletTransaction[]
+
+  @@index([email])
+  @@index([memberId])
+  @@index([sponsorId])
+  @@index([active])
+  @@map("users")
+}
+
+// Enums
+enum TransactionType {
+  PAYMENT    // Customer payment for order
+  COMMISSION // Commission payout to distributor
+  REFUND     // Refund to customer
+  WITHDRAWAL // Distributor withdrawal
+  DEPOSIT    // Manual deposit/admin adjustment
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYPAL
+  BANK_TRANSFER
+  CRYPTO
+  CASH
+  CHECK
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+  BANK
+  MANUAL
+  CRYPTO
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PayoutMethod {
+  BANK_TRANSFER
+  PAYPAL
+  CHECK
+  WIRE_TRANSFER
+  CRYPTO
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum WalletTransactionType {
+  CREDIT    // Money added to wallet
+  DEBIT     // Money removed from wallet
+  HOLD      // Money held/pending
+  RELEASE   // Money released from hold
+}
